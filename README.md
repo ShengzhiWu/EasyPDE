@@ -65,11 +65,7 @@ for i, point in enumerate(points):
                              weight_distribution_radius=weight_distribution_radius)
 ```
 
-You may have noticed the funny way to define the differential operator, where `[a0, a1, a2, a3, a4, a5]` means the operator
-$$
-a_0+a_1 \frac {\partial}{\partial x}+a_2 \frac {\partial}{\partial y}+a_3 \frac {\partial^2}{\partial x^2}+a_4 \frac {\partial^2}{\partial x \partial y}+a_5 \frac {\partial^2}{\partial y^2}.
-$$
-So `[1, 0, 0, 0, 0, 0]` is used for defining the identity operator, which only return the original function without doing anything. And `[0, 0, 0, 1, 0, 1]` means $\frac {\partial^2}{\partial x^2}+\frac {\partial^2}{\partial y^2}$, which is $\nabla^2$.
+You may have noticed the funny way to define the differential operator, where `[a0, a1, a2, a3, a4, a5]` means the operator $a_0+a_1 \frac {\partial}{\partial x}+a_2 \frac {\partial}{\partial y}+a_3 \frac {\partial^2}{\partial x^2}+a_4 \frac {\partial^2}{\partial x \partial y}+a_5 \frac {\partial^2}{\partial y^2}$. So `[1, 0, 0, 0, 0, 0]` is used for defining the identity operator, which only return the original function without doing anything. And `[0, 0, 0, 1, 0, 1]` means $\frac {\partial^2}{\partial x^2}+\frac {\partial^2}{\partial y^2}$, which is $\nabla^2$.
 
 Then you can solve the linear system. The result is a 1d numpy array with length equals to the number of points. It's the list of function values of the numerical solution on each point.
 
@@ -127,10 +123,53 @@ You can see a interesting phenomenon in the figure: curves of peak of wave tried
 
 ## Generate Point Cloud
 
-Essentially speaking, in EasyPDE, you only need location of points to describe the domain. You can define the points in any way you like. The follow example scatter points in a triangle
-$$
-\Omega := \{ (x, y)\in \R^2| x<1 \text{ and } y>0 \text{ and } y<x \}.
-$$
+This section is a inspirational tutorial, showing how can user point clouds for EasyPDE.
+
+Essentially speaking, in EasyPDE, you only need location of points to describe the domain. You can define the points in any way you like. The follow example scatter points in a triangle $\Omega := \{ (x, y)\in \R^2| x<1 \text{ and } y>0 \text{ and } y<x \}$, which is like
+
+![rectangle_domain](images/rectangle_domain.png)
+
+Clearly you can generate a grid and delete the upper part with pure NumPy.
+
+```python
+points = np.mgrid[0:1:20j, 0:1:20j].T.reshape([-1, 2])
+points = points[points[:, 1]<=points[:, 0]]
+
+easypde.plot_points(points)
+```
+
+![points in rectangle_0](images/points in rectangle_0.png)
+
+If you solve $\nabla^2 u = 1$, $u\bigg|_{\partial \Omega}=0$ by
+
+```python
+# Solve
+A = np.zeros((len(points), len(points)))
+b = np.zeros(len(points))
+weight_distribution_radius = easypde.pointcloud.get_typical_distance(points)*0.1
+for i, point in enumerate(points):
+    x = point[0]
+    y = point[1]
+    if if x==1 or y==0 or x==y::  # On boundary
+        a = np.arctan2(x, y)
+        easypde.edit_A_and_b(i, A, b, points, point, 5, [1, 0, 0, 0, 0, 0],
+                             weight_distribution_radius=weight_distribution_radius)
+    else:  # Internal
+        easypde.edit_A_and_b(i, A, b, points, point, 16, [0, 0, 0, 1, 0, 1],
+                             value=1,
+                             weight_distribution_radius=weight_distribution_radius)
+solution = np.linalg.solve(A, b)
+
+# Visualize
+easypde.plot_points(points, field=solution)
+```
+
+you get the expected solution:
+
+![solution_rectangle_0](images/solution_rectangle_0.png)
+
+But you can do this that easily only because the geometry is extremally simple. For general cases, you have to scatter points in the domain.  
+
 Firstly you should write a function, whose input is a numpy array of points, output is a boolean array, indicating whether each point is in the domain.
 
 ```python
@@ -174,41 +213,13 @@ easypde.plot_points(points)  # Visualize
 
 The result looks not uniform. But you are luck. EasyPDE can work on this!
 
-If you solve $\nabla^2 u = 1$,
-
-$$
-u\bigg|_{\partial \Omega}=0
-$$
-
-by
-
-```python
-# Solve
-A = np.zeros((len(points), len(points)))
-b = np.zeros(len(points))
-weight_distribution_radius = easypde.pointcloud.get_typical_distance(points)*0.1
-for i, point in enumerate(points):
-    x = point[0]
-    y = point[1]
-    if if x==1 or y==0 or x==y::  # On boundary
-        a = np.arctan2(x, y)
-        easypde.edit_A_and_b(i, A, b, points, point, 5, [1, 0, 0, 0, 0, 0],
-                             weight_distribution_radius=weight_distribution_radius)
-    else:  # Internal
-        easypde.edit_A_and_b(i, A, b, points, point, 16, [0, 0, 0, 1, 0, 1],
-                             value=1,
-                             weight_distribution_radius=weight_distribution_radius)
-solution = np.linalg.solve(A, b)
-
-# Visualize
-easypde.plot_points(points, field=solution)
-```
-
-you get what you expect:
+You can solve and get your solution:
 
 ![solution rectangle 1](images/solution_rectangle_1.png)
 
-In fact we can do something to make the point cloud more proper. You can use `relax_points`, which relaxes points by simulating that they repel each other.
+The result is nice.
+
+We can also do something to make the point cloud more proper. You can use `relax_points`, which relaxes points by simulating that they repel each other.
 
 ```python
 # Generate boundary_points and internal_points (... same code as before)
@@ -223,7 +234,7 @@ points = points[in_domain(points)]  # Delete points went out the domain.
 
 ![solution rectangle 2](images/solution_rectangle_2.png)
 
-As an alternative method, you can use `relax_points_voronoi`, which relaxes points by moving each point to the center of its Voronoi cell and repeating this modification for several times.
+As an alternative method, you can use `relax_points_voronoi`, which relaxes points by moving each point to the center of its Voronoi cell and repeating this modification for several times. This usually provides a little better results but takes a little more time.
 
 ```python
 # Generate boundary_points and internal_points (... same code as before)
@@ -237,3 +248,80 @@ points = easypde.pointcloud.relax_points_voronoi(boundary_points, internal_point
 
 ![solution rectangle 3](images/solution_rectangle_3.png)
 
+## 3D Example
+
+$\Omega=(0, 1)^3$, $\nabla^2 u = 1$, $u\bigg|_{\partial \Omega}=0$.
+
+```python
+points = np.mgrid[0:1:10j, 0:1:10j, 0:1:10j].T.reshape([-1, 3])
+
+easypde.plot_points(points, point_size=17)
+```
+
+A new window should open, showing a 3D cube. You can rotate it with your mouse. This feature is based on PyVista.
+
+![3d](images/3d.png)
+
+You can solve and visualize the solution in the same way. The only difference is that the definition of differential operators now have 10 items, because its the combination of  $1$, $ \frac {\partial}{\partial x}$, $ \frac {\partial}{\partial y}$, $\frac {\partial}{\partial z}$, $\frac {\partial^2}{\partial x^2}$, $\frac {\partial^2}{\partial y^2}$, $\frac {\partial^2}{\partial z^2}$, $ \frac {\partial^2}{\partial x \partial y}$, $ \frac {\partial^2}{\partial y \partial z}$, $ \frac {\partial^2}{\partial x \partial z}$.
+
+```python
+A = np.zeros((len(points), len(points)))
+b = np.zeros(len(points))
+weight_distribution_radius = easypde.pointcloud.get_typical_distance(points)*0.1
+for i, point in enumerate(points):
+    x = point[0]
+    y = point[1]
+    z = point[2]
+    if x==0 or x==1 or y==0 or y==1 or z==0 or z==1:  # On boundary
+        a = np.arctan2(x, y)
+        easypde.edit_A_and_b(i, A, b, points, point, 7, [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                             weight_distribution_radius=weight_distribution_radius,
+                             space_type="3d")
+    else:  # Internal
+        easypde.edit_A_and_b(i, A, b, points, point, 27, [0, 0, 0, 0, 1, 1, 1, 0, 0, 0],
+                             value=1,
+                             weight_distribution_radius=weight_distribution_radius,
+                             space_type="3d")
+
+solution = np.linalg.solve(A, b)
+
+easypde.plot_points(points[:500], field=solution[:500], point_size=17)
+```
+
+
+
+![solution_3d](images/solution_3d.png)
+
+## Surface Example
+
+In this section, we calculate eigenfunction of $\nabla^2$ on sphere. This problem is of great importance in quantum mechanics.
+
+Let $\Omega=\{(x, y, z)|x^2+y^2+z^2=1\}$. Eigenfunctions on sphere can be very symmetric and beautiful. However, generally speaking, there are multiple eigenfunctions sharing same eigenvalues. It's bad for visualization, because a numerical result of a eigenfunction can be combination of several symmetric eigenfunctions, resulting in an asymmetric sum. Here, for convenience, we use a trick to avoid this trouble as much as possible. Instead of $\frac {\partial^2}{\partial x^2}+\frac {\partial^2}{\partial y^2}+\frac {\partial^2}{\partial z^2}$, we calculate eigenvalues of $\frac {\partial^2}{\partial x^2}+\frac {\partial^2}{\partial y^2}+1.2\frac {\partial^2}{\partial z^2}$.
+
+```python
+# Scatter points on sphere.
+points = np.random.randn(2000, 3)
+
+# Relax the points.
+for i in range(40):
+    points += easypde.pointcloud.repulsive_force(points, points, 5./40, 10.)*0.01
+    points /= np.sqrt(np.sum(np.square(points), axis=-1)).reshape((-1, 1))
+
+# Fill matrix A.
+A = np.zeros((len(points), len(points)))
+weight_distribution_radius = easypde.pointcloud.get_typical_distance(points)*0.1
+for i, point in enumerate(points):
+    easypde.edit_A(i, A, points, point, 27, [0, 0, 0, 0, 1, 1, 1.2, 0, 0, 0],
+                   weight_distribution_radius=weight_distribution_radius,
+                   space_type="3d")
+
+# Calculate eigenvalues and eigenvectors of A.
+eig = np.linalg.eig(A)
+
+# Visualize the 20th eigenvector.
+eigenvector_id = 19
+easypde.plot_points((points.T*np.abs(eig[1].T[np.lexsort([np.abs(eig[0])])[eigenvector_id]])).T,
+                    field=np.real(eig[1].T[np.lexsort([np.abs(eig[0])])[eigenvector_id]]), point_size=17)
+```
+
+![eigen_function](images/eigen_function.png)
