@@ -10,10 +10,7 @@ Enjoy writing less code and get solutions you want!
 
 ## Basic Example: Solving Laplacian Equation
 
-Assume you have a domain $\Omega$, which is a unit disk. You want to solve the following PDE with Dirichlet boundary condition:
-$$
-∇^2 u = 0,
-$$
+Assume you have a domain $\Omega$, which is a unit disk. You want to solve the following PDE with Dirichlet boundary condition: $\nabla^2 u = 0$,
 
 $$
 u\bigg|_{\partial \Omega}=\cos \theta,
@@ -88,10 +85,7 @@ easypde.plot_points(points, field=solution)
 
 ![solution](images/solution.png)
 
-How about Neumann boundary conditions, where you require $\partial u/ \partial n$, the normal derivative, equals to something on boundary? Consider the following problem:
-$$
-\text{∇}^2 u = \sin 15 x,
-$$
+How about Neumann boundary conditions, where you require $\partial u/ \partial n$, the normal derivative, equals to something on boundary? Consider the following problem: $\nabla^2 u = \sin 15 x$,
 
 $$
 \frac {\partial u} {\partial n} \bigg|_{\partial \Omega} = 0.
@@ -180,10 +174,7 @@ easypde.plot_points(points)  # Visualize
 
 The result looks not uniform. But you are luck. EasyPDE can work on this!
 
-If you solve
-$$
-\nabla^2 u = 1,
-$$
+If you solve $\nabla^2 u = 1$,
 
 $$
 u\bigg|_{\partial \Omega}=0
