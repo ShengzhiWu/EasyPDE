@@ -125,7 +125,7 @@ solution = np.linalg.solve(A, b)
 easypde.plot_points(points, field=solution)
 ```
 
-![solution 2](images/solution 2.png)
+![solution_2](images/solution_2.png)
 
 Note that problems with pure Neumann boundary conditions like the above one have multiple solutions, for adding a const to a solution results in another solution. As a result, the matrix $A$ is singular. To fix this, I treat the last row differently. I assigned 1 for every element of the last row, while leaving the last element of $b$  0. This fix the mean value of solution to 0. 
 
@@ -176,9 +176,7 @@ points = np.concatenate([boundary_points, internal_points])  # Simply join them
 easypde.plot_points(points)  # Visualize
 ```
 
-
-
-![points in rectangle 1](images/points in rectangle 1.png)
+![points in rectangle_1](images/points_in_rectangle_1.png)
 
 The result looks not uniform. But you are luck. EasyPDE can work on this!
 
@@ -217,7 +215,7 @@ easypde.plot_points(points, field=solution)
 
 you get what you expect:
 
-![solution rectangle 1](images/solution rectangle 1.png)
+![solution rectangle 1](images/solution_rectangle_1.png)
 
 In fact we can do something to make the point cloud more proper. You can use `relax_points`, which relaxes points by simulating that they repel each other.
 
@@ -232,7 +230,7 @@ points = points[in_domain(points)]  # Delete points went out the domain.
 # Visualize (... same code as before)
 ```
 
-![solution rectangle 2](images/solution rectangle 2.png)
+![solution rectangle 2](images/solution_rectangle_2.png)
 
 As an alternative method, you can use `relax_points_voronoi`, which relaxes points by moving each point to the center of its Voronoi cell and repeating this modification for several times.
 
@@ -246,5 +244,5 @@ points = easypde.pointcloud.relax_points_voronoi(boundary_points, internal_point
 # Visualize (... same code as before)
 ```
 
-![solution rectangle 3](images/solution rectangle 3.png)
+![solution rectangle 3](images/solution_rectangle_3.png)
 
