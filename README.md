@@ -90,7 +90,7 @@ easypde.plot_points(points, field=solution)
 
 How about Neumann boundary conditions, where you require $\partial u/ \partial n$, the normal derivative, equals to something on boundary? Consider the following problem:
 $$
-∇^2 u = \sin 15 x,
+\text{∇}^2 u = \sin 15 x,
 $$
 
 $$
