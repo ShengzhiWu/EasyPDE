@@ -1,5 +1,4 @@
 import numpy as np
-# import pyvista
 
 __version__ = "1.0"
 
@@ -170,11 +169,19 @@ class pointcloud:
             return np.logical_and(np.logical_and(points[:, 0]>=0, points[:, 0]<=1), np.logical_and(points[:, 1]>=0, points[:, 1]<=1))
         return cls.relax_points_voronoi(boundary_points, internal_points, in_domain, iterations=iterations)*size
 
-def plot_points(points, field=None):
-    import matplotlib.pyplot as plt
+def plot_points(points, field=None, point_size=None):
+    if points.shape[-1]==2:
+        import matplotlib.pyplot as plt
 
-    plt.scatter(points[:, 0], points[:, 1], c=field)
-    plt.axis('equal')
-    if not field is None:
-        plt.colorbar()
-    plt.show()
+        plt.scatter(points[:, 0], points[:, 1], s=point_size, c=field)
+        plt.axis('equal')
+        if not field is None:
+            plt.colorbar()
+        plt.show()
+    elif points.shape[-1]==3:
+        import pyvista
+
+        particles = pyvista.PolyData(points)
+        if not field is None:
+            particles.point_data["color"] = field
+        particles.plot(notebook=False, point_size=point_size, render_points_as_spheres=False)

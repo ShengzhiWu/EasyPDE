@@ -1,3 +1,17 @@
+Metadata-Version: 2.1
+Name: easypde
+Version: 0.0
+Summary: A powerful and easy-to-use python package for solving PDEs.
+Author: Shengzhi Wu
+Author-email: e1124755@u.nus.edu
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Scientific/Engineering :: Mathematics
+Classifier: Topic :: Scientific/Engineering :: Physics
+Description-Content-Type: text/markdown
+License-File: LICENSE
+
 # EasyPDE
 
 EasyPDE is a python package designed for solving partial differential equations (PDEs). It's unbelievably easy to use, but powerful, providing a continuous solution for solving not only linear but also nonlinear PDEs in complex shapes in 2D as well as 3D space, or even surfaces.

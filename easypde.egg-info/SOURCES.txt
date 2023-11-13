@@ -1,0 +1,9 @@
+LICENSE
+README.md
+setup.py
+easypde/__init__.py
+easypde.egg-info/PKG-INFO
+easypde.egg-info/SOURCES.txt
+easypde.egg-info/dependency_links.txt
+easypde.egg-info/requires.txt
+easypde.egg-info/top_level.txt
