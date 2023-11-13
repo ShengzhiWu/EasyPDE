@@ -125,7 +125,7 @@ You can see a interesting phenomenon in the figure: curves of peak of wave tried
 
 This section is a inspirational tutorial, showing how can user point clouds for EasyPDE.
 
-Essentially speaking, in EasyPDE, you only need location of points to describe the domain. You can define the points in any way you like. The follow example scatter points in a triangle $\Omega := \{ (x, y)\in \R^2| x<1 \text{ and } y>0 \text{ and } y<x \}$, which is like
+Essentially speaking, in EasyPDE, you only need location of points to describe the domain. You can define the points in any way you like. The follow example scatter points in a triangle $\Omega := \{ (x, y)| x<1 \text{ and } y>0 \text{ and } y<x \}$, which is like
 
 ![rectangle_domain](images/rectangle_domain.png)
 
