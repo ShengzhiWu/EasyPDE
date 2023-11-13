@@ -12,7 +12,7 @@ Enjoy writing less code and get solutions you want!
 
 Assume you have a domain $\Omega$, which is a unit disk. You want to solve the following PDE with Dirichlet boundary condition:
 $$
-\nabla^2 u = 0,
+∇^2 u = 0,
 $$
 
 $$
@@ -90,7 +90,7 @@ easypde.plot_points(points, field=solution)
 
 How about Neumann boundary conditions, where you require $\partial u/ \partial n$, the normal derivative, equals to something on boundary? Consider the following problem:
 $$
-\nabla^2 u = \sin 15 x,
+∇^2 u = \sin 15 x,
 $$
 
 $$
