@@ -127,7 +127,7 @@ You can see a interesting phenomenon in the figure: curves of peak of wave tried
 
 This section is a inspirational tutorial, showing how can user point clouds for EasyPDE.
 
-Essentially speaking, in EasyPDE, you only need location of points to describe the domain. You can define the points in any way you like. The follow example scatter points in a triangle $\Omega := \{ (x, y)| x \lt 1 \text{ and } y \gt 0 \text{ and } y \lt x \}$, which is like
+Essentially speaking, in EasyPDE, you only need location of points to describe the domain. You can define the points in any way you like. The follow example scatter points in a triangle $\Omega :=${$ (x, y)| x \lt 1 \text{ and } y \gt 0 \text{ and } y \lt x$}, which is like
 
 ![rectangle_domain](images/rectangle_domain.png)
 
@@ -298,7 +298,7 @@ easypde.plot_points(points[:500], field=solution[:500], point_size=17)
 
 In this section, we calculate eigenfunction of $\nabla^2$ on sphere. This problem is of great importance in quantum mechanics.
 
-Let $\Omega=\{(x, y, z)|x^2+y^2+z^2=1\}$. Eigenfunctions on sphere can be very symmetric and beautiful. However, generally speaking, there are multiple eigenfunctions sharing same eigenvalues. It's bad for visualization, because a numerical result of a eigenfunction can be combination of several symmetric eigenfunctions, resulting in an asymmetric sum. Here, for convenience, we use a trick to avoid this trouble as much as possible. Instead of $\frac {\partial^2}{\partial x^2}+\frac {\partial^2}{\partial y^2}+\frac {\partial^2}{\partial z^2}$, we calculate eigenvalues of $\frac {\partial^2}{\partial x^2}+\frac {\partial^2}{\partial y^2}+1.2\frac {\partial^2}{\partial z^2}$.
+Let $\Omega=${$(x, y, z)|x^2+y^2+z^2=1$}. Eigenfunctions on sphere can be very symmetric and beautiful. However, generally speaking, there are multiple eigenfunctions sharing same eigenvalues. It's bad for visualization, because a numerical result of a eigenfunction can be combination of several symmetric eigenfunctions, resulting in an asymmetric sum. Here, for convenience, we use a trick to avoid this trouble as much as possible. Instead of $\frac {\partial^2}{\partial x^2}+\frac {\partial^2}{\partial y^2}+\frac {\partial^2}{\partial z^2}$, we calculate eigenvalues of $\frac {\partial^2}{\partial x^2}+\frac {\partial^2}{\partial y^2}+1.2\frac {\partial^2}{\partial z^2}$.
 
 ```python
 # Scatter points on sphere.

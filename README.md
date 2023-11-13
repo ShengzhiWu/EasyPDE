@@ -8,6 +8,12 @@ What's more, it's extremely easy to fix boundary conditions. You can do this in 
 
 Enjoy writing less code and get solutions you want!
 
+## Install
+
+```
+$ pip install easypde
+```
+
 ## Basic Example: Solving Laplacian Equation
 
 Assume you have a domain $\Omega$, which is a unit disk. You want to solve the following PDE with Dirichlet boundary condition: $\nabla^2 u = 0$, $u\bigg|_{\partial \Omega}=\cos \theta$, where $\partial \Omega$ means boundary of $\Omega$, namely a circle in this case. You can easily solve the problem numerically with EasyPDE.
