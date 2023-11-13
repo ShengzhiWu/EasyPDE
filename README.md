@@ -1,3 +1,5 @@
+![logo](images/logo.png)
+
 # EasyPDE
 
 EasyPDE is a python package designed for solving partial differential equations (PDEs). It's unbelievably easy to use, but powerful, providing a continuous solution for solving not only linear but also nonlinear PDEs in complex shapes in 2D as well as 3D space, or even surfaces.
