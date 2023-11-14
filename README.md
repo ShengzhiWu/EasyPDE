@@ -4,7 +4,7 @@
 
 EasyPDE is a python package designed for solving partial differential equations (PDEs). It's unbelievably easy to use, but powerful, providing a continuous solution for solving not only linear but also nonlinear PDEs in complex shapes in 2D as well as 3D space, or even surfaces.
 
-You no longer need to care about mesh generation, which can be a big problem itself for some messy geometries. This is because the algorithm is designed for solving PDEs based on only points scattered in the domain. On the other hand, you don't need to calculate integrates in elements like you did in FEM any more.
+You no longer need to care about mesh generation, which can be a big problem itself for some messy geometries. This is because the algorithm is designed for working on only points scattered in the domain. This makes it extremely robust. On the other hand, you don't need to calculate integrates in elements like you did in FEM.
 
 What's more, it's extremely easy to fix boundary conditions. You can do this in a continuous way as in the domain. For example, if you want to require $\partial u/\partial x$ equals to something, or you want to require this on boundary, the code is same! Don't worry about the order of error. It's typically of second order.
 
@@ -18,7 +18,9 @@ $ pip install easypde
 
 ## Basic Example: Solving Laplacian Equation
 
-Assume you have a domain $\Omega$, which is a unit disk. You want to solve the following PDE with Dirichlet boundary condition: $\nabla^2 u = 0$, $u\bigg|_{\partial \Omega}=\cos \theta$, where $\partial \Omega$ means boundary of $\Omega$, namely a circle in this case. You can easily solve the problem numerically with EasyPDE.
+### Solve
+
+Assume you have a domain $\Omega$, which is a unit disk. You want to solve the following PDE with Dirichlet boundary condition: $\nabla^2 u = 0$, $u\bigg|_{\partial \Omega}=\cos 4\theta$, where $\partial \Omega$ means boundary of $\Omega$, namely a circle in this case. You can easily solve the problem numerically with EasyPDE.
 
 ```python
 import numpy as np
@@ -83,6 +85,51 @@ easypde.plot_points(points, field=solution)
 
 ![solution](images/solution.png)
 
+### error analysis
+
+Let's compare it with the analytical solution $u = r^4 \cos 4 \theta$. Let's calculate root mean square (RMS) of the difference as $error$.
+
+```python
+r = np.sqrt(np.sum(np.square(points), axis=-1))
+a = np.arctan2(points[:, 0], points[:, 1])
+ground_truth = r**4*np.cos(4*a)
+print(np.sqrt(np.mean(np.square(solution-ground_truth))))
+```
+
+The RMS I got is $4.9\times 10^{-4}$. It may me a little different on your computer due to randomness introduced at the step of point cloud generation.
+
+Then you can try a finer point could with about 4 times points, resulting in about half distance between points.
+
+```python
+points = easypde.pointcloud.scatter_points_on_disk(1600)
+
+A = np.zeros((len(points), len(points)))
+b = np.zeros(len(points))
+weight_distribution_radius = easypde.pointcloud.get_typical_distance(points)*0.1
+for i, point in enumerate(points):
+    x = point[0]
+    y = point[1]
+    if x**2+y**2>0.999:  # On boundary
+        a = np.arctan2(x, y)
+        easypde.edit_A_and_b(i, A, b, points, point, 5, [1, 0, 0, 0, 0, 0],
+                             value=np.cos(a*4),
+                             weight_distribution_radius=weight_distribution_radius)
+    else:  # Internal
+        easypde.edit_A_and_b(i, A, b, points, point, 16, [0, 0, 0, 1, 0, 1],
+                             weight_distribution_radius=weight_distribution_radius)
+
+solution = np.linalg.solve(A, b)
+
+r = np.sqrt(np.sum(np.square(points), axis=-1))
+a = np.arctan2(points[:, 0], points[:, 1])
+ground_truth = r**4*np.cos(4*a)
+np.sqrt(np.mean(np.square(solution-ground_truth)))
+```
+
+The RMS I got is $9.4\times 10^{-5}$. The $order$ of a numerical solutions is defined by $error\sim h^{order}$, where $h$ is the typical size of elements, here the distance of points. So the order here is 2. 
+
+### Neumann boundary conditions
+
 How about Neumann boundary conditions, where you require $\partial u/ \partial n$, the normal derivative, equals to something on boundary? Consider the following problem: $\nabla^2 u = \sin 15 x$, $\frac {\partial u} {\partial n} \bigg|_{\partial \Omega} = 0$. Notice that at the boundary of unit disk, the normal direction is simply $(x, y)$. So the operator for $\partial u/ \partial n$ can be wrote as `[0, x, y, 0, 0, 0]`.
 
 The code is as follows, where you use a more density point cloud for finer result.
@@ -117,7 +164,7 @@ Note that problems with pure Neumann boundary conditions like the above one have
 
 You can see a interesting phenomenon in the figure: curves of peak of wave tried to get perpendicular to the boundary, which is clearly result of the Neumann boundary condition.
 
-## Generate Point Cloud
+## Generate Custom Point Clouds
 
 This section is a inspirational tutorial, showing how can user point clouds for EasyPDE.
 
@@ -281,6 +328,7 @@ for i, point in enumerate(points):
 
 solution = np.linalg.solve(A, b)
 
+# Visualize solution on half of the box
 easypde.plot_points(points[:500], field=solution[:500], point_size=17)
 ```
 
@@ -321,3 +369,75 @@ easypde.plot_points((points.T*np.abs(eig[1].T[np.lexsort([np.abs(eig[0])])[eigen
 ```
 
 ![eigen_function](images/eigen_function.png)
+
+Here we use absolute value of eigenfunction to morph the sphere to get better visualization.
+
+## ODE Example
+
+Here we solve convection-diffusion equation $\frac {\partial u} {\partial t}=-v\cdot \nabla u+\mu \nabla^2 u$, where $v=(1, 1)$ and $\mu=0.03$.
+
+```python
+points = easypde.pointcloud.scatter_points_on_square(800)
+
+# Define u at t=0
+u = np.clip(30*(0.15-np.sqrt(np.sum(np.square(points-np.array([0.5, 0.5])), axis=-1))), 0, 1)
+
+easypde.plot_points(points, field=u)
+```
+
+![ode_t=0](images/ode_t=0.png)
+
+```python
+A = np.zeros((len(points), len(points)))
+weight_distribution_radius = easypde.pointcloud.get_typical_distance(points)*0.1
+for i, point in enumerate(points):
+    x = point[0]
+    y = point[1]
+    easypde.edit_A(i, A, points, point, 16, [0, -1, -1, 0.03, 0, 0.03],
+                   weight_distribution_radius=weight_distribution_radius)
+
+dt = 0.01
+for step in range(30):
+    u += A@u*dt  # 1-order Euler method
+
+easypde.plot_points(points, field=u)
+```
+
+
+
+![ode_t=0.3](images/ode_t=0.3.png)
+
+As you see, the round patch moves in the direction of $v$ and gets blur.
+
+Let's do some interesting. If it's easy to define differential operators in EasyPDE, why not just treat the above 2D ODE problem as a 3D PDE problem? The operator should be $-v\cdot \nabla u-\frac {\partial u} {\partial t}+\mu \nabla^2 u$, which can be encoded as `[0, -1, -1, -1, 0.03, 0.03, 0, 0, 0, 0]`.
+
+```python
+points = np.mgrid[0:1:20j, 0:1:20j, 0:0.3:6j].T.reshape([-1, 3])
+
+A = np.zeros((len(points), len(points)))
+b = np.zeros(len(points))
+weight_distribution_radius = easypde.pointcloud.get_typical_distance(points)*0.1
+for i, point in enumerate(points):
+    x = point[0]
+    y = point[1]
+    t = point[2]
+    if t==0:
+        easypde.edit_A_and_b(i, A, b, points, point, 7, [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                             value=np.clip(30*(0.15-np.sqrt((x-0.5)**2+(y-0.5)**2)), 0, 1),  # u(x, 0)
+                             weight_distribution_radius=weight_distribution_radius,
+                             space_type="3d")
+    else:
+        easypde.edit_A_and_b(i, A, b, points, point, 27, [0, -1, -1, -1, 0.03, 0.03, 0, 0, 0, 0],
+                             weight_distribution_radius=weight_distribution_radius,
+                             space_type="3d")
+
+solution = np.linalg.solve(A, b)
+
+# Visualize solution on half of the box
+visuable = points[:, 0]<=points[:, 1]
+easypde.plot_points(points[visuable], field=solution[visuable], point_size=13)
+```
+
+![treat_ode_as_pde](images/treat_ode_as_pde.png)
+
+The result is consistent with the previous one.
