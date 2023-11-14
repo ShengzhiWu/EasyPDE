@@ -85,7 +85,7 @@ easypde.plot_points(points, field=solution)
 
 ![solution](images/solution.png)
 
-### error analysis
+### Error Analysis
 
 Let's compare it with the analytical solution $u = r^4 \cos 4 \theta$. Let's calculate root mean square (RMS) of the difference as $error$.
 
@@ -126,9 +126,9 @@ ground_truth = r**4*np.cos(4*a)
 np.sqrt(np.mean(np.square(solution-ground_truth)))
 ```
 
-The RMS I got is $9.4\times 10^{-5}$. The $order$ of a numerical solutions is defined by $error\sim h^{order}$, where $h$ is the typical size of elements, here the distance of points. So the order here is 2. 
+The RMS I got is $9.4\times 10^{-5}$. The $order$ of a numerical solutions is defined by $error\sim h^{order}$, where $h$ is the typical size of elements, here the distance of points. So the method here is of 2nd order. 
 
-### Neumann boundary conditions
+### Neumann Boundary Conditions
 
 How about Neumann boundary conditions, where you require $\partial u/ \partial n$, the normal derivative, equals to something on boundary? Consider the following problem: $\nabla^2 u = \sin 15 x$, $\frac {\partial u} {\partial n} \bigg|_{\partial \Omega} = 0$. Notice that at the boundary of unit disk, the normal direction is simply $(x, y)$. So the operator for $\partial u/ \partial n$ can be wrote as `[0, x, y, 0, 0, 0]`.
 
