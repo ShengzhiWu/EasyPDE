@@ -230,7 +230,7 @@ in_domain(np.array([[0.5, 0.25], [0.5, 0.75]]))
 
 The result should be `array([ True, False])`.
 
-The following code scatters points randomly with pure numpy.
+The following code scatters points randomly with pure numpy. Code for solving and visualizing are completely same so being omitted.
 
 ```python
 # Generate boundary_points and internal_points
@@ -244,23 +244,17 @@ for t in np.linspace(0, 1, int(19*np.sqrt(2)), endpoint=False):
     
 internal_points = np.random.rand(400, 2)
 internal_points = internal_points[in_domain(internal_points)]  # Delete points out domain
-```
 
-```python
 points = np.concatenate([boundary_points, internal_points])  # Simply join them
 
-easypde.plot_points(points)  # Visualize
+# Code for solving
+
+# Code for visualizing
 ```
-
-![points in rectangle_1](images/points_in_rectangle_1.png)
-
-The result looks not uniform. But you are luck. EasyPDE can work on this!
-
-You can solve and get your solution:
 
 ![solution rectangle 1](images/solution_rectangle_1.png)
 
-The result is nice.
+Also the point cloud is not very uniform, EasyPDE does work on this!
 
 We can also do something to make the point cloud more proper. You can use `relax_points`, which relaxes points by simulating that they repel each other.
 
@@ -290,6 +284,34 @@ points = easypde.pointcloud.relax_points_voronoi(boundary_points, internal_point
 ```
 
 ![solution rectangle 3](images/solution_rectangle_3.png)
+
+## Visualization
+
+As you have seen, you can use `easypde.plot_points` for visualizing. It automatically choose 2D or 3D methods depending on the input data.
+
+### Color
+
+#### Use Original RGB values
+
+In case you have an `rgb` which is an array containing RGB values for each point. It's size must be `(len(points), 3)`. You can use option `field=rgb` to directly visualize RGB color.
+
+#### Use Color Map
+
+Color maps are used if you have a field, which means you have a real or complex value for each point, and want to map the values to colors. A yellow-green-blue map is used by default.
+
+You can use `color_map=...` in `easypde.plot_points` to assign a color map like you do in `plt` with `camp=...`. For example
+
+```python
+easypde.plot_points(points, field=u, color_map='hsv')  # Visualize value as hue
+```
+
+Apart from maps in `plt`, EasyPDE offers a new one, `'complex_hsv'`, for complex values. By using that, you can visualize $\text{Arg } f(z)$ as hue and $|f(z)|$ as brightness.
+
+### Point Size
+
+You can set point size in `easypde.plot_points` by thing like `point_size=10`.
+
+You can option `adaptive_point_size=True` to make point size adapt to the density of points cloud where each point locate. This feature induce additional computing cost. This feature on support 2D visualization.
 
 ## 3D Example
 
@@ -441,3 +463,45 @@ easypde.plot_points(points[visuable], field=solution[visuable], point_size=13)
 ![treat_ode_as_pde](images/treat_ode_as_pde.png)
 
 The result is consistent with the previous one.
+
+## Complex Functions Example
+
+You can also use EasyPDE solving PDEs of complex Functions.
+
+For a complex value function $f(x+i y)$, to require it as  a holomorphic function, we need Cauchy–Riemann equations: $\frac {\partial Re f}{\partial x} = \frac {\partial Im f}{\partial y}$ and $\frac {\partial Re f}{\partial y} = -\frac {\partial Im f}{\partial x}$, which equivalent to $\frac {\partial f}{\partial x} + i\frac {\partial f}{\partial y} = 0$. The differential operator $\frac {\partial}{\partial x} + i\frac {\partial}{\partial y}$ is wrote as `[0, 1, 1j, 0, 0, 0]` in EasyPDE. Let's solve a trivial problem, where we want to solve a holomorphic function $f(z)$ in a disk with $f\bigg|_{\partial \Omega}=z^2$.
+
+```python
+points = easypde.pointcloud.scatter_points_on_disk(400)
+
+A = np.zeros((len(points), len(points)), dtype=np.complex64)
+b = np.zeros(len(points), dtype=np.complex64)
+weight_distribution_radius = easypde.pointcloud.get_typical_distance(points)*0.1
+for i, point in enumerate(points):
+    x = point[0]
+    y = point[1]
+    if x**2+y**2>0.999:  # On boundary
+        easypde.edit_A_and_b(i, A, b, points, point, 5, [1, 0, 0, 0, 0, 0],
+                             value=(x+y*1j)**2,
+                             weight_distribution_radius=weight_distribution_radius,
+                             dtype=np.complex64)
+    else:  # Internal
+        easypde.edit_A_and_b(i, A, b, points, point, 16, [0, 1, 1j, 0, 0, 0],
+                             weight_distribution_radius=weight_distribution_radius,
+                             dtype=np.complex64)
+
+solution = np.linalg.solve(A, b)
+
+easypde.plot_points(points, field=solution, color_map='complex_hsv')
+```
+
+![holomorphic_function](images/holomorphic_function.png)
+
+Here we use a color function which maps $\text{Arg } f(z)$ to hue and $|f(z)|$ to brightness.
+
+The we can calculate the error:
+
+```python
+np.sqrt(np.mean(np.square(np.abs(solution-(points[:, 0]+points[:, 1]*1j)**2))))
+```
+
+The error I got is $6.9\times 10^{-7}$. The numerical result is really satisfying.

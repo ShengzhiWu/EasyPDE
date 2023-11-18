@@ -1,6 +1,6 @@
 import numpy as np
 
-__version__ = "1.0"
+__version__ = "0.1"
 
 def calculate_weights(A, b, sigma):
     A /= sigma
@@ -58,23 +58,23 @@ def generate_A(points, order=2, space_type="2d"):
     
     return None
 
-def edit_A(row: int, A, points, point, neighbor_n: int, operator, weight_decay_power: float=3, weight_distribution_radius: float=None, order=2, space_type="2d"):
+def edit_A(row: int, A, points, point, neighbor_n: int, operator, weight_decay_power: float=3, weight_distribution_radius: float=None, order=2, space_type="2d", dtype=np.float32):
     if weight_distribution_radius is None:
         weight_distribution_radius = pointcloud.get_typical_distance(points, samples=10)*0.1
     neighbors = pointcloud.find_closest_points(points, point, neighbor_n)
     neighbors_relative_location = points[neighbors]-point
     A_neighbors = generate_A(neighbors_relative_location, order=order, space_type=space_type)
-    b_neighbors = np.array(operator, dtype=np.float32)
+    b_neighbors = np.array(operator, dtype=dtype)
     sigma_neighbors = np.sum(np.square(neighbors_relative_location), axis=1)**(weight_decay_power*0.5)+weight_distribution_radius**weight_decay_power
     A[row, neighbors] = calculate_weights(A_neighbors, b_neighbors, sigma_neighbors)
 
-def edit_A_and_b(row: int, A, b, points, point, neighbor_n: int, operator, value: float=0, weight_decay_power: float=3, weight_distribution_radius: float=None, order=2, space_type="2d"):
+def edit_A_and_b(row: int, A, b, points, point, neighbor_n: int, operator, value: float=0, weight_decay_power: float=3, weight_distribution_radius: float=None, order=2, space_type="2d", dtype=np.float32):
     if weight_distribution_radius is None:
         weight_distribution_radius = pointcloud.get_typical_distance(points, samples=10)*0.1
     neighbors = pointcloud.find_closest_points(points, point, neighbor_n)
     neighbors_relative_location = points[neighbors]-point
     A_neighbors = generate_A(neighbors_relative_location, order=order, space_type=space_type)
-    b_neighbors = np.array(operator, dtype=np.float32)
+    b_neighbors = np.array(operator, dtype=dtype)
     sigma_neighbors = np.sum(np.square(neighbors_relative_location), axis=1)**(weight_decay_power*0.5)+weight_distribution_radius**weight_decay_power
     A[row, neighbors] = calculate_weights(A_neighbors, b_neighbors, sigma_neighbors)
     b[row] = value
@@ -169,19 +169,74 @@ class pointcloud:
             return np.logical_and(np.logical_and(points[:, 0]>=0, points[:, 0]<=1), np.logical_and(points[:, 1]>=0, points[:, 1]<=1))
         return cls.relax_points_voronoi(boundary_points, internal_points, in_domain, iterations=iterations)*size
 
-def plot_points(points, field=None, point_size=None):
+def hsv_to_rgb(hsv):
+    rgb = np.zeros_like(hsv)
+    h = hsv[:, 0]%1
+    c = hsv[:, 1]*hsv[:, 2]
+    x = c*(1-np.abs((h*6)%2-1))
+    m = hsv[:, 2]-c
+    condition = np.logical_and(h>=0, h<1/6)
+    rgb[condition, 0] = c[condition]
+    rgb[condition, 1] = x[condition]
+    condition = np.logical_and(h>=1/6, h<2/6)
+    rgb[condition, 1] = c[condition]
+    rgb[condition, 0] = x[condition]
+    condition = np.logical_and(h>=2/6, h<3/6)
+    rgb[condition, 1] = c[condition]
+    rgb[condition, 2] = x[condition]
+    condition = np.logical_and(h>=3/6, h<4/6)
+    rgb[condition, 2] = c[condition]
+    rgb[condition, 1] = x[condition]
+    condition = np.logical_and(h>=4/6, h<5/6)
+    rgb[condition, 2] = c[condition]
+    rgb[condition, 0] = x[condition]
+    condition = np.logical_and(h>=5/6, h<=1)
+    rgb[condition, 0] = c[condition]
+    rgb[condition, 2] = x[condition]
+    rgb += m.reshape([-1, 1])
+    return rgb
+
+def plot_points(points, field=None, point_size=None, adaptive_point_size=False, color_map=None):
     if points.shape[-1]==2:
         import matplotlib.pyplot as plt
 
-        plt.scatter(points[:, 0], points[:, 1], s=point_size, c=field)
+        if adaptive_point_size:
+            distance_to_neighbor = []
+            for point in points:
+                closest_points = points[pointcloud.find_closest_points(points, point, 2)[1]]
+                distance_to_neighbor.append(np.sqrt(np.sum(np.square(closest_points-point))))
+            distance_to_neighbor = np.array(distance_to_neighbor)
+            point_size_factor = distance_to_neighbor**2
+            point_size_factor /= np.mean(point_size_factor)
+        
+        if point_size is None:
+            point_size = 6
+
+        if color_map == "complex_hsv":
+            plt.scatter(points[:, 0], points[:, 1], s=point_size**2 if not adaptive_point_size else point_size**2*point_size_factor, c=hsv_to_rgb(np.array([np.arctan2(np.imag(field), np.real(field))/(2*np.pi),
+                                                                                         np.ones(len(field)),
+                                                                                         np.abs(field)/np.max(np.abs(field))]).T))
+        else:
+            plt.scatter(points[:, 0], points[:, 1], s=point_size**2 if not adaptive_point_size else point_size**2*point_size_factor, c=field, cmap=color_map)
         plt.axis('equal')
-        if not field is None:
+        if not (field is None or color_map == "complex_hsv"):
             plt.colorbar()
         plt.show()
     elif points.shape[-1]==3:
         import pyvista
 
+        if point_size is None:
+            point_size = 5
+
+        if adaptive_point_size:
+            print("Warning by EasyPDE: Option 'adaptive_point_size=True' is not applicable for 3D visualization.")
+
         particles = pyvista.PolyData(points)
         if not field is None:
             particles.point_data["color"] = field
-        particles.plot(notebook=False, point_size=point_size, render_points_as_spheres=False)
+        if (not field is None) and len(field.shape)==2 and field.shape[1]==3:
+            particles.plot(notebook=False, point_size=point_size, rgb="color", render_points_as_spheres=False)
+        else:
+            particles.plot(notebook=False, point_size=point_size, cmap=color_map, render_points_as_spheres=False)
+    else:
+        raise ValueError("Only 2D or 3D point clouds are supported.")
