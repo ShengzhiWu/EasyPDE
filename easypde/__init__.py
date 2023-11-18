@@ -1,6 +1,6 @@
 import numpy as np
 
-__version__ = "0.1"
+__version__ = "0.2"
 
 def calculate_weights(A, b, sigma):
     A /= sigma
@@ -168,6 +168,20 @@ class pointcloud:
         def in_domain(points):
             return np.logical_and(np.logical_and(points[:, 0]>=0, points[:, 0]<=1), np.logical_and(points[:, 1]>=0, points[:, 1]<=1))
         return cls.relax_points_voronoi(boundary_points, internal_points, in_domain, iterations=iterations)*size
+    
+    @classmethod
+    def scatter_points_on_rectangle(cls, n: int, width: float=1, height: float=1, iterations=30):
+        boundary_points = []
+        for t in np.linspace(0, width, int(np.sqrt(n*width/height)), endpoint=False):
+            boundary_points.append([t, 0])
+            boundary_points.append([width-t, height])
+        for t in np.linspace(0, height, int(np.sqrt(n*height/width)), endpoint=False):
+            boundary_points.append([width, t])
+            boundary_points.append([0, height-t])
+        internal_points = np.random.rand(n-len(boundary_points), 2)*np.array([width, height])
+        def in_domain(points):
+            return np.logical_and(np.logical_and(points[:, 0]>=0, points[:, 0]<=width), np.logical_and(points[:, 1]>=0, points[:, 1]<=height))
+        return cls.relax_points_voronoi(boundary_points, internal_points, in_domain, iterations=iterations)
 
 def hsv_to_rgb(hsv):
     rgb = np.zeros_like(hsv)
@@ -219,7 +233,7 @@ def plot_points(points, field=None, point_size=None, adaptive_point_size=False, 
         else:
             plt.scatter(points[:, 0], points[:, 1], s=point_size**2 if not adaptive_point_size else point_size**2*point_size_factor, c=field, cmap=color_map)
         plt.axis('equal')
-        if not (field is None or color_map == "complex_hsv"):
+        if not (field is None or color_map == "complex_hsv" or len(field.shape)!=1):
             plt.colorbar()
         plt.show()
     elif points.shape[-1]==3:
