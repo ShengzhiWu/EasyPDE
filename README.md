@@ -329,7 +329,16 @@ A new window should open, showing a 3D cube. You can rotate it with your mouse. 
 
 ![3d](images/3d.png)
 
-You can solve and visualize the solution in the same way. The only difference is that the definition of differential operators now have 10 items, because its the combination of  $1$, $ \frac {\partial}{\partial x}$, $ \frac {\partial}{\partial y}$, $\frac {\partial}{\partial z}$, $\frac {\partial^2}{\partial x^2}$, $\frac {\partial^2}{\partial y^2}$, $\frac {\partial^2}{\partial z^2}$, $ \frac {\partial^2}{\partial x \partial y}$, $ \frac {\partial^2}{\partial y \partial z}$, $ \frac {\partial^2}{\partial x \partial z}$.
+You can solve and visualize the solution in the same way. The only difference is that the definition of differential operators now have 10 items, because its the combination of  $1$, $ \frac {\partial}{\partial x}$, $ \frac {\partial}{\partial y}$, $\frac {\partial}{\partial z}$, $\frac {\partial^2}{\partial x^2}$, $ \frac {\partial^2}{\partial x \partial y}$, $ \frac {\partial^2}{\partial x \partial z}$, $\frac {\partial^2}{\partial y^2}$, $ \frac {\partial^2}{\partial y \partial z}$, $\frac {\partial^2}{\partial z^2}$.
+
+Be careful of the order. Use `easypde.get_operator_order` to get a list of operators.
+
+```python
+easypde.get_operator_order(3, 2, axis_names=['x', 'y', 'z'])
+# Result: ['', 'x', 'y', 'z', 'xx', 'xy', 'xz', 'yy', 'yz', 'zz']
+```
+
+The code for solving this PDE is as follows.
 
 ```python
 A = np.zeros((len(points), len(points)))
@@ -342,13 +351,11 @@ for i, point in enumerate(points):
     if x==0 or x==1 or y==0 or y==1 or z==0 or z==1:  # On boundary
         a = np.arctan2(x, y)
         easypde.edit_A_and_b(i, A, b, points, point, 7, [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                             weight_distribution_radius=weight_distribution_radius,
-                             space_type="3d")
+                             weight_distribution_radius=weight_distribution_radius)
     else:  # Internal
-        easypde.edit_A_and_b(i, A, b, points, point, 27, [0, 0, 0, 0, 1, 1, 1, 0, 0, 0],
+        easypde.edit_A_and_b(i, A, b, points, point, 27, [0, 0, 0, 0, 1, 0, 0, 1, 0, 1],
                              value=1,
-                             weight_distribution_radius=weight_distribution_radius,
-                             space_type="3d")
+                             weight_distribution_radius=weight_distribution_radius)
 
 solution = np.linalg.solve(A, b)
 
@@ -364,10 +371,11 @@ easypde.plot_points(points[:500], field=solution[:500], point_size=17)
 
 In this section, we calculate eigenfunction of $\nabla^2$ on sphere. This problem is of great importance in quantum mechanics.
 
-Let $\Omega=${$(x, y, z)|x^2+y^2+z^2=1$}. Eigenfunctions on sphere can be very symmetric and beautiful. However, generally speaking, there are multiple eigenfunctions sharing same eigenvalues. It's bad for visualization, because a numerical result of a eigenfunction can be combination of several symmetric eigenfunctions, resulting in an asymmetric sum. Here, for convenience, we use a trick to avoid this trouble as much as possible. Instead of $\frac {\partial^2}{\partial x^2}+\frac {\partial^2}{\partial y^2}+\frac {\partial^2}{\partial z^2}$, we calculate eigenvalues of $\frac {\partial^2}{\partial x^2}+\frac {\partial^2}{\partial y^2}+1.2\frac {\partial^2}{\partial z^2}$.
+Let $\Omega=${$(x, y, z)|x^2+y^2+z^2=1$}. Eigenfunctions on sphere can be very symmetric and beautiful. Turn to [Spherical harmonics - Wikipedia](https://en.wikipedia.org/wiki/Spherical_harmonics) for more introductions of these functions.
 
 ```python
 # Scatter points on sphere.
+np.random.seed(0)
 points = np.random.randn(2000, 3)
 
 # Relax the points.
@@ -376,25 +384,52 @@ for i in range(40):
     points /= np.sqrt(np.sum(np.square(points), axis=-1)).reshape((-1, 1))
 
 # Fill matrix A.
+np.random.seed(0)
 A = np.zeros((len(points), len(points)))
 weight_distribution_radius = easypde.pointcloud.get_typical_distance(points)*0.1
 for i, point in enumerate(points):
-    easypde.edit_A(i, A, points, point, 27, [0, 0, 0, 0, 1, 1, 1.2, 0, 0, 0],
+    easypde.edit_A(i, A, points, point, 16, [0, 0, 0, 1, 0, 1],
                    weight_distribution_radius=weight_distribution_radius,
-                   space_type="3d")
+                   space_type='subspace', basis_of_subspace=easypde.math.get_perpendicular_subspace([point]))
 
 # Calculate eigenvalues and eigenvectors of A.
 eig = np.linalg.eig(A)
 
-# Visualize the 20th eigenvector.
-eigenvector_id = 19
+plt.plot(np.sort(np.abs(eig[0]))[:40], 'o')  # Plot eigenvalues.
+```
+
+![eigen_values](images/eigen_values.png)
+
+Here we used the option`space_type='subspace'` and `basis_of_subspace=array([vectors])`, which define the subspace where the operators operate.  And we used `easypde.math.get_perpendicular_subspace` to generate the basis of the subspace, which is perpendicular to the vector $r$.
+
+You can see the 1, 3, 5, 7, ... pattern of the eigenfunctions sharing same eigenvalues, which is a well-known character of spectrum of Laplacian on a sphere.
+
+When you try to plot an eigenfunction by
+
+```python
+# Visualize the 22th eigenvector.
+eigenvector_id = 21
 easypde.plot_points((points.T*np.abs(eig[1].T[np.lexsort([np.abs(eig[0])])[eigenvector_id]])).T,
                     field=np.real(eig[1].T[np.lexsort([np.abs(eig[0])])[eigenvector_id]]), point_size=17)
 ```
 
-![eigen_function](images/eigen_function.png)
+![eigen_function_asymmetric](images/eigen_function_asymmetric.png)
 
-Here we use absolute value of eigenfunction to morph the sphere to get better visualization.
+We use absolute value of eigenfunction to morph the sphere to get better visualization.
+
+The result is not symmetric at all. This is because the eigenfunctions sharing eigenvalue mixed. To get a more symmetric result, you can make the operator behave a little different in the longitude and latitude direction. You only need to change the "Fill matrix A" part of the above code.
+
+```python
+np.random.seed(0)
+A = np.zeros((len(points), len(points)))
+weight_distribution_radius = easypde.pointcloud.get_typical_distance(points)*0.1
+for i, point in enumerate(points):
+    easypde.edit_A(i, A, points, point, 16, [0, 0, 0, 1, 0, 1.1],
+                   weight_distribution_radius=weight_distribution_radius,
+                   space_type='subspace', basis_of_subspace=easypde.math.get_perpendicular_subspace([point], guide_directions=[[0, 0, 1]]))
+```
+
+![eigen_function](images/eigen_function.png)
 
 ## ODE Example
 
@@ -433,7 +468,7 @@ easypde.plot_points(points, field=u)
 
 As you see, the round patch moves in the direction of $v$ and gets blur.
 
-Let's do some interesting. If it's easy to define differential operators in EasyPDE, why not just treat the above 2D ODE problem as a 3D PDE problem? The operator should be $-v\cdot \nabla u-\frac {\partial u} {\partial t}+\mu \nabla^2 u$, which can be encoded as `[0, -1, -1, -1, 0.03, 0.03, 0, 0, 0, 0]`.
+Let's do some interesting. If it's easy to define differential operators in EasyPDE, why not just treat the above 2D ODE problem as a 3D PDE problem? The operator should be $-v\cdot \nabla u-\frac {\partial u} {\partial t}+\mu \nabla^2 u$, which can be encoded as `[0, -1, -1, -1, 0.03, 0, 0, 0.03, 0, 0]`.
 
 ```python
 points = np.mgrid[0:1:20j, 0:1:20j, 0:0.3:6j].T.reshape([-1, 3])
@@ -448,12 +483,10 @@ for i, point in enumerate(points):
     if t==0:
         easypde.edit_A_and_b(i, A, b, points, point, 7, [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                              value=np.clip(30*(0.15-np.sqrt((x-0.5)**2+(y-0.5)**2)), 0, 1),  # u(x, 0)
-                             weight_distribution_radius=weight_distribution_radius,
-                             space_type="3d")
+                             weight_distribution_radius=weight_distribution_radius)
     else:
-        easypde.edit_A_and_b(i, A, b, points, point, 27, [0, -1, -1, -1, 0.03, 0.03, 0, 0, 0, 0],
-                             weight_distribution_radius=weight_distribution_radius,
-                             space_type="3d")
+        easypde.edit_A_and_b(i, A, b, points, point, 27, [0, -1, -1, -1, 0.03, 0, 0, 0.03, 0, 0],
+                             weight_distribution_radius=weight_distribution_radius)
 
 solution = np.linalg.solve(A, b)
 

@@ -1,6 +1,50 @@
 import numpy as np
 
-__version__ = "0.2"
+__version__ = "1.0"
+
+class math:
+    @classmethod
+    def partitions(cls, total, number_of_parts):
+        if number_of_parts==1:
+            return [[total]]
+        result = []
+        for i in range(total, -1, -1):
+            result += [[i]+e for e in cls.partitions(total-i, number_of_parts-1)]
+        return result
+
+    @classmethod
+    def factorial(cls, n):
+        result = 1
+        for i in range(2, n+1):
+            result *= i
+        return result
+
+    @classmethod
+    def sigmoid(cls, a):
+        return 1./(1.+np.exp(-a))
+    
+    @classmethod
+    def orthogonize(cls, vectors):
+        vectors = np.array(vectors)
+        for i in range(len(vectors)):
+            vectors[i] /= np.sqrt(np.sum(np.square(np.abs(vectors[i]))))
+            for j in range(i+1, len(vectors)):
+                vectors[j] -= vectors[i]*np.dot(vectors[j], np.conjugate(vectors[i]))
+        return vectors
+    
+    @classmethod
+    def make_orthogonal_basis(cls, vectors, guide_directions=None):
+        vectors = [e for e in vectors]
+        if not guide_directions is None:
+            vectors += [e for e in guide_directions]
+        while len(vectors)<len(vectors[0]):
+            vectors.append(np.random.rand(len(vectors[0]))*2-1)
+        return cls.orthogonize(vectors)
+    
+    @classmethod
+    def get_perpendicular_subspace(cls, subspace, guide_directions=None):
+        space = cls.make_orthogonal_basis(subspace, guide_directions=guide_directions)
+        return space[len(subspace):]
 
 def calculate_weights(A, b, sigma):
     A /= sigma
@@ -11,78 +55,60 @@ def calculate_weights(A, b, sigma):
 def find_closest_points(points, point, n):
     return np.lexsort([np.sum(np.square(points-point), axis=1)])[: n]
 
-def generate_A(points, order=2, space_type="2d"):
-    if space_type=="2d":
-        x = points[:, 0]
-        y = points[:, 1]
-        if order==1:
-            return np.array([
-                np.ones_like(x),
-                x, y
-            ])
-        elif order==2:
-            return np.array([
-                np.ones_like(x),
-                x, y,
-                x**2*0.5,
-                x*y,
-                y**2*0.5
-            ])
-        elif order==3:
-            return np.array([
-                np.ones_like(x),
-                x, y,
-                x**2*0.5,
-                x*y,
-                y**2*0.5,
-                x*x*x/6,
-                x*x*y*0.5,
-                x*y*y*0.5,
-                y*y*y/6
-            ])
-    elif space_type=="3d":
-        x = points[:, 0]
-        y = points[:, 1]
-        z = points[:, 2]
-        if order==2:
-            return np.array([
-                [1.]*len(points),
-                 x, y, z,
-                 x**2*0.5,
-                 y**2*0.5,
-                 z**2*0.5,
-                 x*y,
-                 y*z,
-                 z*x
-            ])
-    
-    return None
+def get_operator_order(dimension, order, axis_names=None):
+    result = []
+    for i in range(order+1):
+        result += math.partitions(i, dimension)
+        
+    if not axis_names is None:
+        for i in range(len(result)):
+            s = ''
+            for j, e in enumerate(result[i]):
+                s += axis_names[j]*e
+            result[i] = s
+        
+    return result
 
-def edit_A(row: int, A, points, point, neighbor_n: int, operator, weight_decay_power: float=3, weight_distribution_radius: float=None, order=2, space_type="2d", dtype=np.float32):
+def generate_A(points, order=2, space_type='full', basis_of_subspace=None):
+    if space_type=='full':
+        result = []
+        for i in range(order+1):
+            for partition in math.partitions(i, points.shape[-1]):
+                factor = 1
+                result.append(np.ones(len(points)))
+                for j, p in enumerate(partition):
+                    result[-1] *= points[:, j]**p
+                    factor /= math.factorial(p)
+                result[-1] *= factor
+        return np.array(result)
+    
+    if space_type=='subspace':
+        return generate_A(points@basis_of_subspace.T, order=order)
+    
+    raise ValueError("Unknown space type: '"+space_type+"'.")
+
+def edit_A(row: int, A, points, point, neighbor_n: int, operator, weight_decay_power: float=3, weight_distribution_radius: float=None, order=2, space_type="full", basis_of_subspace=None, dtype=np.float32):
     if weight_distribution_radius is None:
         weight_distribution_radius = pointcloud.get_typical_distance(points, samples=10)*0.1
     neighbors = pointcloud.find_closest_points(points, point, neighbor_n)
     neighbors_relative_location = points[neighbors]-point
-    A_neighbors = generate_A(neighbors_relative_location, order=order, space_type=space_type)
+    A_neighbors = generate_A(neighbors_relative_location, order=order, space_type=space_type, basis_of_subspace=basis_of_subspace)
     b_neighbors = np.array(operator, dtype=dtype)
     sigma_neighbors = np.sum(np.square(neighbors_relative_location), axis=1)**(weight_decay_power*0.5)+weight_distribution_radius**weight_decay_power
     A[row, neighbors] = calculate_weights(A_neighbors, b_neighbors, sigma_neighbors)
 
-def edit_A_and_b(row: int, A, b, points, point, neighbor_n: int, operator, value: float=0, weight_decay_power: float=3, weight_distribution_radius: float=None, order=2, space_type="2d", dtype=np.float32):
+def edit_A_and_b(row: int, A, b, points, point, neighbor_n: int, operator, value: float=0, weight_decay_power: float=3, weight_distribution_radius: float=None, order=2, space_type="full", basis_of_subspace=None, dtype=np.float32):
     if weight_distribution_radius is None:
         weight_distribution_radius = pointcloud.get_typical_distance(points, samples=10)*0.1
     neighbors = pointcloud.find_closest_points(points, point, neighbor_n)
     neighbors_relative_location = points[neighbors]-point
-    A_neighbors = generate_A(neighbors_relative_location, order=order, space_type=space_type)
+    A_neighbors = generate_A(neighbors_relative_location, order=order, space_type=space_type, basis_of_subspace=basis_of_subspace)
     b_neighbors = np.array(operator, dtype=dtype)
     sigma_neighbors = np.sum(np.square(neighbors_relative_location), axis=1)**(weight_decay_power*0.5)+weight_distribution_radius**weight_decay_power
     A[row, neighbors] = calculate_weights(A_neighbors, b_neighbors, sigma_neighbors)
     b[row] = value
 
 class pointcloud:
-    @classmethod
-    def sigmoid(cls, a):
-        return 1./(1.+np.exp(-a))
 
     @classmethod
     def find_closest_points(cls, points, point, n):
@@ -107,7 +133,7 @@ class pointcloud:
     def repulsive_force(cls, points1, points2, prefered_distance, sharpness):  # 计算第一组点受到的第二组点的斥力，返回向量模长在0和1之间
         v = np.reshape(points1, (-1, 1, points1.shape[-1]))-points2
         distances = np.sqrt(np.sum(np.square(v), axis=-1))
-        factor = np.divide(cls.sigmoid(sharpness/prefered_distance*(prefered_distance-distances)), distances, where=np.abs(distances)>prefered_distance*0.0001)
+        factor = np.divide(math.sigmoid(sharpness/prefered_distance*(prefered_distance-distances)), distances, where=np.abs(distances)>prefered_distance*0.0001)
         forces = np.sum(np.transpose(v, axes=(2, 0, 1))*factor, axis=2).T
         return forces
     
