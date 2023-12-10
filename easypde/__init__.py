@@ -1,6 +1,6 @@
 import numpy as np
 
-__version__ = "1.0"
+__version__ = "1.1"
 
 class math:
     @classmethod
@@ -55,7 +55,7 @@ def calculate_weights(A, b, sigma):
 def find_closest_points(points, point, n):
     return np.lexsort([np.sum(np.square(points-point), axis=1)])[: n]
 
-def get_operator_order(dimension, order, axis_names=None):
+def get_operators(dimension, order, axis_names=None):
     result = []
     for i in range(order+1):
         result += math.partitions(i, dimension)
@@ -87,26 +87,134 @@ def generate_A(points, order=2, space_type='full', basis_of_subspace=None):
     
     raise ValueError("Unknown space type: '"+space_type+"'.")
 
-def edit_A(row: int, A, points, point, neighbor_n: int, operator, weight_decay_power: float=3, weight_distribution_radius: float=None, order=2, space_type="full", basis_of_subspace=None, dtype=np.float32):
-    if weight_distribution_radius is None:
-        weight_distribution_radius = pointcloud.get_typical_distance(points, samples=10)*0.1
-    neighbors = pointcloud.find_closest_points(points, point, neighbor_n)
-    neighbors_relative_location = points[neighbors]-point
-    A_neighbors = generate_A(neighbors_relative_location, order=order, space_type=space_type, basis_of_subspace=basis_of_subspace)
-    b_neighbors = np.array(operator, dtype=dtype)
-    sigma_neighbors = np.sum(np.square(neighbors_relative_location), axis=1)**(weight_decay_power*0.5)+weight_distribution_radius**weight_decay_power
-    A[row, neighbors] = calculate_weights(A_neighbors, b_neighbors, sigma_neighbors)
+def get_curl_operators(dimension):
+    result = []
+    for i in range(dimension):
+        for j in range(i+1, dimension):
+            result.append([i, j])
+    return result[::-1]
 
-def edit_A_and_b(row: int, A, b, points, point, neighbor_n: int, operator, value: float=0, weight_decay_power: float=3, weight_distribution_radius: float=None, order=2, space_type="full", basis_of_subspace=None, dtype=np.float32):
-    if weight_distribution_radius is None:
-        weight_distribution_radius = pointcloud.get_typical_distance(points, samples=10)*0.1
-    neighbors = pointcloud.find_closest_points(points, point, neighbor_n)
-    neighbors_relative_location = points[neighbors]-point
-    A_neighbors = generate_A(neighbors_relative_location, order=order, space_type=space_type, basis_of_subspace=basis_of_subspace)
-    b_neighbors = np.array(operator, dtype=dtype)
-    sigma_neighbors = np.sum(np.square(neighbors_relative_location), axis=1)**(weight_decay_power*0.5)+weight_distribution_radius**weight_decay_power
-    A[row, neighbors] = calculate_weights(A_neighbors, b_neighbors, sigma_neighbors)
-    b[row] = value
+def edit_A_and_b(row: int, A, b,
+                 points, point,
+                 neighbor_n: int,
+                 operator, value=0, row_channel=0, column_channel=0,
+                 neighbors=None,  # Precalculated neighbors
+                 weight_decay_power: float=3, weight_distribution_radius: float=None, order=2, space_type="full", basis_of_subspace=None,
+                 edit_type='add', dtype=np.float32):
+    if type(operator)!=np.ndarray:
+        if neighbors is None:
+            neighbors = pointcloud.find_closest_points(points, point, neighbor_n)
+        else:
+            neighbors = np.array(neighbors)
+            if (not neighbor_n is None) and len(neighbors)>neighbor_n:
+                neighbors = neighbors[:neighbor_n]
+    
+    if type(operator)==str:
+        if operator=='constant':
+            operator = [0]*len(get_operators(len(point), order))
+            operator[0] = 1
+        elif operator=='laplacian':
+            operator = []
+            for e1 in get_operators(len(point), order):
+                zeros = 0
+                twos = 0
+                for e2 in e1:
+                    if e2==0:
+                        zeros += 1
+                    elif e2==2:
+                        twos += 1
+                operator.append(1 if (twos==1 and zeros+twos==len(e1)) else 0)
+        elif operator=='div':
+            edited_rows = set()
+            edited_columns = set()
+            for i in range(len(point)):
+                operator = [0]*len(get_operators(len(point), order))
+                operator[i+1] = 1
+                information = edit_A_and_b(row, A, b,
+                                           points, point,
+                                           neighbor_n,
+                                           operator, value=(value if i==len(point)-1 else 0), row_channel=row_channel, column_channel=column_channel+i,
+                                           neighbors=neighbors,
+                                           weight_decay_power=weight_decay_power, weight_distribution_radius=weight_distribution_radius, order=order, space_type=space_type, basis_of_subspace=basis_of_subspace,
+                                           edit_type=edit_type, dtype=dtype)
+                edited_rows = edited_rows.union(information['edited_rows'])
+                edited_columns = edited_columns.union(information['edited_columns'])
+            return {
+                'edited_rows': list(np.sort(list(edited_rows))),
+                'edited_columns': list(np.sort(list(edited_columns)))
+            }
+        elif operator=='curl':
+            operators = get_curl_operators(len(point))
+            if type(value) in [int, float]:
+                if value==0:
+                    value = [0]*len(operators)
+                else:
+                    raise ValueError("Unexpected value: "+value+". A list of length "+str(len(operators))+" is expected.")
+            edited_rows = set()
+            edited_columns = set()
+            for i, e in enumerate(operators):
+                for j, operator_value in zip([0, 1], [1, -1]):
+                    operator = [0]*len(get_operators(len(point), order))
+                    operator[e[j]+1] = operator_value
+                    information = edit_A_and_b(row, A, b,
+                                            points, point,
+                                            neighbor_n,
+                                            operator, value=(value[i] if j==1 else 0), row_channel=row_channel+i, column_channel=column_channel+e[1-j],
+                                            neighbors=neighbors,
+                                            weight_decay_power=weight_decay_power, weight_distribution_radius=weight_distribution_radius, order=order, space_type=space_type, basis_of_subspace=basis_of_subspace,
+                                            edit_type=edit_type, dtype=dtype)
+                    edited_rows = edited_rows.union(information['edited_rows'])
+                    edited_columns = edited_columns.union(information['edited_columns'])
+            return {
+                'edited_rows': list(np.sort(list(edited_rows))),
+                'edited_columns': list(np.sort(list(edited_columns)))
+            }
+        else:
+            raise ValueError("Unexpected operator: '"+operator+"'.")
+
+    if type(operator)==list:
+        if weight_distribution_radius is None:
+            weight_distribution_radius = pointcloud.get_typical_distance(points, samples=10)*0.1
+        neighbors_relative_location = points[neighbors]-point
+        A_neighbors = generate_A(neighbors_relative_location, order=order, space_type=space_type, basis_of_subspace=basis_of_subspace)
+        b_neighbors = np.array(operator, dtype=dtype)
+        sigma_neighbors = np.sum(np.square(neighbors_relative_location), axis=1)**(weight_decay_power*0.5)+weight_distribution_radius**weight_decay_power
+        operator = calculate_weights(A_neighbors, b_neighbors, sigma_neighbors)
+
+    if type(operator)!=np.ndarray:
+        raise ValueError("Unexpected operator type: '"+str(type(operator))+"'.")
+
+    row += row_channel*len(points)
+    neighbors += column_channel*len(points)
+    if edit_type=='set':
+        A[row, neighbors] = operator
+        if not b is None:
+            b[row] = value
+    elif edit_type=='add':
+        A[row, neighbors] += operator
+        if not b is None:
+            b[row] += value
+    else:
+        raise ValueError("Unknown edit type: '"+edit_type+"'.")
+    return {
+        'edited_rows': [row],
+        'edited_columns': list(neighbors)
+    }
+
+def edit_A(row: int, A,
+           points, point,
+           neighbor_n: int,
+           operator, row_channel=0, column_channel=0,
+           neighbors=None,
+           weight_decay_power: float=3, weight_distribution_radius: float=None, order=2, space_type="full", basis_of_subspace=None,
+           edit_type='add', dtype=np.float32):
+    return edit_A_and_b(row, A, None,
+                        points, point,
+                        neighbor_n,
+                        operator, value=None, row_channel=row_channel, column_channel=column_channel,
+                        neighbors=neighbors,
+                        weight_decay_power=weight_decay_power, weight_distribution_radius=weight_distribution_radius, order=order, space_type=space_type, basis_of_subspace=basis_of_subspace,
+                        edit_type=edit_type, dtype=dtype)
 
 class pointcloud:
 
@@ -280,3 +388,13 @@ def plot_points(points, field=None, point_size=None, adaptive_point_size=False, 
             particles.plot(notebook=False, point_size=point_size, cmap=color_map, render_points_as_spheres=False)
     else:
         raise ValueError("Only 2D or 3D point clouds are supported.")
+    
+def plot_matrix(A, cmap=None, show_colorbar=True):
+    import matplotlib.pyplot as plt
+    if cmap is None:
+        cmap = plt.cm.bwr
+    abs_max = np.max(np.abs(A))
+    plt.imshow(A, cmap=cmap, vmin=-abs_max, vmax=abs_max)
+    if show_colorbar:
+        plt.colorbar()
+    plt.show()

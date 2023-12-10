@@ -85,6 +85,15 @@ easypde.plot_points(points, field=solution)
 
 ![solution](images/solution.png)
 
+The operator `[0, 0, 0, 1, 0, 1]` in the above code can be replaced by a more compact form, which uses predefined differential operators `'laplacian'`:
+
+```python
+easypde.edit_A_and_b(i, A, b, points, point,
+                     16,  # number of neighbours for calculation
+                     'laplacian',  # differential operator
+                     weight_distribution_radius=weight_distribution_radius)
+```
+
 ### Error Analysis
 
 Let's compare it with the analytical solution $u = r^4 \cos 4 \theta$. Let's calculate root mean square (RMS) of the difference as $error$.
@@ -127,6 +136,20 @@ np.sqrt(np.mean(np.square(solution-ground_truth)))
 ```
 
 The RMS I got is $9.4\times 10^{-5}$. The $order$ of a numerical solutions is defined by $error\sim h^{order}$, where $h$ is the typical size of elements, here the distance of points. So the method here is of 2nd order. 
+
+### Visualize Matrix
+
+For better visibility of patterns, we use less, namely 40, points for demonstration.
+
+```python
+points = easypde.pointcloud.scatter_points_on_disk(400)
+
+# All thins same.
+
+easypde.plot_matrix(A)
+```
+
+![matrix](images/matrix.png)
 
 ### Neumann Boundary Conditions
 
@@ -331,10 +354,10 @@ A new window should open, showing a 3D cube. You can rotate it with your mouse. 
 
 You can solve and visualize the solution in the same way. The only difference is that the definition of differential operators now have 10 items, because its the combination of  $1$, $ \frac {\partial}{\partial x}$, $ \frac {\partial}{\partial y}$, $\frac {\partial}{\partial z}$, $\frac {\partial^2}{\partial x^2}$, $ \frac {\partial^2}{\partial x \partial y}$, $ \frac {\partial^2}{\partial x \partial z}$, $\frac {\partial^2}{\partial y^2}$, $ \frac {\partial^2}{\partial y \partial z}$, $\frac {\partial^2}{\partial z^2}$.
 
-Be careful of the order. Use `easypde.get_operator_order` to get a list of operators.
+Be careful of the order. Use `easypde.get_operators` to get a list of operators.
 
 ```python
-easypde.get_operator_order(3, 2, axis_names=['x', 'y', 'z'])
+easypde.get_operators(3, 2, axis_names=['x', 'y', 'z'])
 # Result: ['', 'x', 'y', 'z', 'xx', 'xy', 'xz', 'yy', 'yz', 'zz']
 ```
 
@@ -540,3 +563,76 @@ np.sqrt(np.mean(np.square(np.abs(solution-(points[:, 0]+points[:, 1]*1j)**2))))
 ```
 
 The error I got is $6.9\times 10^{-7}$. The numerical result is really satisfying.
+
+
+
+## Vector Example
+
+Consider a problem about static electric field: $\nabla\cdot \vec{E} = \rho(\vec{r}), \nabla\times \vec{E} = \vec{0}$, where $\vec{E}$ is the electric field and $\rho(\vec{r})$ is the source, namely the electric charge density, of the electric field. This can be solved by solving $\nabla^2 \phi = \rho(\vec{r})$ firstly and then calculate $\vec{E}$ by $\nabla \rho$. But here, we try to directly solve the PDE of vector field $\vec{E}$.
+
+For simplicity we only consider the 2D case. We solve it in a disk of radius 1. Let $\rho$ be 1 in a region of radius 0.25 and be zero outside.
+
+```python
+np.random.seed(0)
+points = easypde.pointcloud.scatter_points_on_disk(1000)
+
+source_r = 0.25
+source_blur = 0.02
+
+# Prepare matrix
+A = np.zeros((len(points)*2, len(points)*2))  # The vector field has 2 components, so sizes are multiplied by 2.
+b = np.zeros(len(points)*2)
+weight_distribution_radius = easypde.pointcloud.get_typical_distance(points)*0.1
+for i, point in enumerate(points):
+    r = np.sqrt(point[0]**2+point[1]**2)
+    div = 1-max(0, min(1, (r-(source_r-source_blur))/(source_blur*2)))
+    
+    neighbors = easypde.pointcloud.find_closest_points(points, point, 16)
+    # Here we precalculate the neighbors because this data will be used several times. This can save some time.
+    
+    easypde.edit_A_and_b(i, A, b, points, point, 16, [0, 1, 0, 0, 0, 0], value=div, neighbors=neighbors, row_channel=0, column_channel=0,
+                         weight_distribution_radius=weight_distribution_radius)
+    easypde.edit_A_and_b(i, A, b, points, point, 16, [0, 0, 1, 0, 0, 0], neighbors=neighbors, row_channel=0, column_channel=1,
+                         weight_distribution_radius=weight_distribution_radius)
+    easypde.edit_A_and_b(i, A, b, points, point, 16, [0, 0, 1, 0, 0, 0], neighbors=neighbors, row_channel=1, column_channel=0,
+                         weight_distribution_radius=weight_distribution_radius)
+    easypde.edit_A_and_b(i, A, b, points, point, 16, [0, -1, 0, 0, 0, 0], neighbors=neighbors, row_channel=1, column_channel=1,
+                         weight_distribution_radius=weight_distribution_radius)
+
+# Solve
+solution = np.linalg.lstsq(A, b, rcond=1/40)[0]  # Calculate the least-squares solution
+# Here we use np.linalg.lstsq instead of np.linalg.solve because the matrix is singular.
+# The rcond parameter is critical. See NumPy's document about np.linalg.lstsq for more details.
+
+# Visualize
+easypde.plot_points(points, field=solution[:len(points)])  # Visualize the first component, namely E_x.
+```
+
+![E_x](images/E_x.png)
+
+We compare the result with ground truth.
+
+```python
+r = np.sqrt(np.sum(np.square(points), axis=-1))
+ground_truth =  np.array(points)
+ground_truth = ground_truth.T
+ground_truth[:, r>=source_r] *= r[r>=source_r]**-2*(np.pi*source_r**2/2/np.pi)*1
+ground_truth[:, r<source_r] *= (np.pi*source_r**2/2/np.pi)/source_r/source_r
+ground_truth = ground_truth.T
+ground_truth = ground_truth.T.flatten()
+
+print('error =', np.sqrt(np.mean(np.square(solution-ground_truth))))
+# Result on my machine: error = 0.006351124477499586.
+```
+
+The error is acceptable.
+
+The 4 `easypde.edit_A_and_b` in the above code can be replaced by a more compact form, which uses predefined vector differential operators `'div'` and `'curl'`:
+
+```python
+easypde.edit_A_and_b(i, A, b, points, point, None, 'div', value=div, neighbors=neighbors, row_channel=0, column_channel=0,
+                     weight_distribution_radius=weight_distribution_radius)
+easypde.edit_A_and_b(i, A, b, points, point, None, 'curl', neighbors=neighbors, row_channel=1, column_channel=0,
+                     weight_distribution_radius=weight_distribution_radius)
+```
+
