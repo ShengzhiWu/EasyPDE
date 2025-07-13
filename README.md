@@ -279,7 +279,7 @@ points = np.concatenate([boundary_points, internal_points])  # Simply join them
 
 ![solution rectangle 1](images/solution_rectangle_1.png)
 
-Also the point cloud is not very uniform, EasyPDE does work on this!
+Although the point cloud is not uniform, EasyPDE does work on this!
 
 We can also do something to make the point cloud more proper. You can use `relax_points`, which relaxes points by simulating that they repel each other.
 
