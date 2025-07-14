@@ -636,3 +636,14 @@ easypde.edit_A_and_b(i, A, b, points, point, None, 'curl', neighbors=neighbors, 
                      weight_distribution_radius=weight_distribution_radius)
 ```
 
+## TODO
+
+加入在黎曼曲面上解PDE的样例
+
+加入广义相对论样例
+
+直接生成微分矩阵的函数
+
+CPU多核求微分矩阵
+
+稀疏矩阵
