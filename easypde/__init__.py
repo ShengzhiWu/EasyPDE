@@ -354,18 +354,18 @@ def plot_points(points, field=None, point_size=None, adaptive_point_size=False, 
                 closest_points = points[pointcloud.find_closest_points(points, point, 2)[1]]
                 distance_to_neighbor.append(np.sqrt(np.sum(np.square(closest_points-point))))
             distance_to_neighbor = np.array(distance_to_neighbor)
-            point_size_factor = distance_to_neighbor**2
+            point_size_factor = distance_to_neighbor ** 2
             point_size_factor /= np.mean(point_size_factor)
         
         if point_size is None:
             point_size = 6
 
         if color_map == "complex_hsv":
-            plt.scatter(points[:, 0], points[:, 1], s=point_size**2 if not adaptive_point_size else point_size**2*point_size_factor, c=hsv_to_rgb(np.array([np.arctan2(np.imag(field), np.real(field))/(2*np.pi),
+            plt.scatter(points[:, 0], points[:, 1], s=point_size ** 2 if not adaptive_point_size else point_size ** 2 * point_size_factor, c=hsv_to_rgb(np.array([np.arctan2(np.imag(field), np.real(field))/(2*np.pi),
                                                                                          np.ones(len(field)),
                                                                                          np.abs(field)/np.max(np.abs(field))]).T))
         else:
-            plt.scatter(points[:, 0], points[:, 1], s=point_size**2 if not adaptive_point_size else point_size**2*point_size_factor, c=field, cmap=color_map)
+            plt.scatter(points[:, 0], points[:, 1], s=point_size ** 2 if not adaptive_point_size else point_size ** 2 * point_size_factor, c=field, cmap=color_map)
         plt.axis('equal')
         if not (field is None or color_map == "complex_hsv" or len(field.shape)!=1):
             plt.colorbar()

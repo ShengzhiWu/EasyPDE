@@ -12,13 +12,15 @@ Enjoy writing less code and get solutions you want!
 
 ## Install
 
-```
-$ pip install easypde
+```bash
+pip install easypde
 ```
 
 ## Basic Example: Solving Laplacian Equation
 
 ### Solve
+
+See `examples/laplacian_equation.ipynb`.
 
 Assume you have a domain $\Omega$, which is a unit disk. You want to solve the following PDE with Dirichlet boundary condition: $\nabla^2 u = 0$, $u\bigg|_{\partial \Omega}=\cos 4\theta$, where $\partial \Omega$ means boundary of $\Omega$, namely a circle in this case. You can easily solve the problem numerically with EasyPDE.
 
@@ -105,7 +107,7 @@ ground_truth = r**4*np.cos(4*a)
 print(np.sqrt(np.mean(np.square(solution-ground_truth))))
 ```
 
-The RMS I got is $4.9\times 10^{-4}$. It may me a little different on your computer due to randomness introduced at the step of point cloud generation.
+The RMS I got is $4.9\times 10^{-4}$. The results on your computer might be slightly different due to randomness introduced at the step of point cloud generation.
 
 Then you can try a finer point could with about 4 times points, resulting in about half distance between points.
 
@@ -153,6 +155,8 @@ easypde.plot_matrix(A)
 
 ### Neumann Boundary Conditions
 
+See `examples/neumann_boundary_conditions.py`.
+
 How about Neumann boundary conditions, where you require $\partial u/ \partial n$, the normal derivative, equals to something on boundary? Consider the following problem: $\nabla^2 u = \sin 15 x$, $\frac {\partial u} {\partial n} \bigg|_{\partial \Omega} = 0$. Notice that at the boundary of unit disk, the normal direction is simply $(x, y)$. So the operator for $\partial u/ \partial n$ can be wrote as `[0, x, y, 0, 0, 0]`.
 
 The code is as follows, where you use a more density point cloud for finer result.
@@ -162,17 +166,17 @@ points = easypde.pointcloud.scatter_points_on_disk(1000)
 
 A = np.zeros((len(points), len(points)))
 b = np.zeros(len(points))
-weight_distribution_radius = easypde.pointcloud.get_typical_distance(points)*0.1
+weight_distribution_radius = easypde.pointcloud.get_typical_distance(points) * 0.1
 for i, point in enumerate(points[:-1]):  # The last point skiped.
     x = point[0]
     y = point[1]
-    if x**2+y**2>0.999:  # On boundary
+    if x ** 2 + y ** 2 > 0.999:  # On boundary
         a = np.arctan2(x, y)
         easypde.edit_A_and_b(i, A, b, points, point, 5, [0, x, y, 0, 0, 0],
                              weight_distribution_radius=weight_distribution_radius)
     else:  # Internal
         easypde.edit_A_and_b(i, A, b, points, point, 16, [0, 0, 0, 1, 0, 1],
-                             value=np.sin(15*x),
+                             value=np.sin(15 * x),
                              weight_distribution_radius=weight_distribution_radius)
 A[-1] = np.ones_like(A[-1])
 
@@ -188,6 +192,8 @@ Note that problems with pure Neumann boundary conditions like the above one have
 You can see a interesting phenomenon in the figure: curves of peak of wave tried to get perpendicular to the boundary, which is clearly result of the Neumann boundary condition.
 
 ## Generate Custom Point Clouds
+
+See `examples/generate_custom_point_clouds_py`.
 
 This section is a inspirational tutorial, showing how can user generate custom point clouds for EasyPDE.
 
@@ -218,7 +224,7 @@ weight_distribution_radius = easypde.pointcloud.get_typical_distance(points)*0.1
 for i, point in enumerate(points):
     x = point[0]
     y = point[1]
-    if if x==1 or y==0 or x==y::  # On boundary
+    if x == 1 or y == 0 or x == y:  # On boundary
         a = np.arctan2(x, y)
         easypde.edit_A_and_b(i, A, b, points, point, 5, [1, 0, 0, 0, 0, 0],
                              weight_distribution_radius=weight_distribution_radius)
@@ -243,8 +249,9 @@ Firstly you should write a function, whose input is a numpy array of points, out
 ```python
 # Define a function, determining whether each point is in the domain.
 def in_domain(points):
-    return np.logical_and(np.logical_and(points[:, 0]<=1, points[:, 1]>=0),
-                           points[:, 0]>=points[:, 1])
+    return np.logical_and(
+        np.logical_and(points[:, 0]<=1, points[:, 1]>=0),
+        points[:, 0]>=points[:, 1])
 ```
 
 For example, $(0.5, 0.25)$ is in $\Omega$, while $(0.5, 0.75)$ not. Run
@@ -286,7 +293,7 @@ We can also do something to make the point cloud more proper. You can use `relax
 ```python
 # Generate boundary_points and internal_points (... same code as before)
 
-points = easypde.pointcloud.relax_points(boundary_points, internal_points, 1/20)
+points = easypde.pointcloud.relax_points(boundary_points, internal_points, 1 / 20)
 points = points[in_domain(points)]  # Delete points went out the domain.
 
 # Solve (... same code as before)
@@ -296,7 +303,7 @@ points = points[in_domain(points)]  # Delete points went out the domain.
 
 ![solution rectangle 2](images/solution_rectangle_2.png)
 
-As an alternative method, you can use `relax_points_voronoi`, which relaxes points by moving each point to the center of its Voronoi cell and repeating this modification for several times. This usually provides a little better results but takes a little more time.
+As an alternative method, you can use `relax_points_voronoi`, which relaxes points by moving each point to the center of its Voronoi cell and repeating this modification for several times. This usually provides a little better results but takes more time.
 
 ```python
 # Generate boundary_points and internal_points (... same code as before)
@@ -339,6 +346,8 @@ You can set point size in `easypde.plot_points` by thing like `point_size=10`.
 You can option `adaptive_point_size=True` to make point size adapt to the density of points cloud where each point locate. This feature induce additional computing cost. This feature on support 2D visualization.
 
 ## 3D Example
+
+See `examples/3d.py`.
 
 $\Omega=(0, 1)^3$, $\nabla^2 u = 1$, $u\bigg|_{\partial \Omega}=0$.
 
@@ -392,6 +401,8 @@ easypde.plot_points(points[:500], field=solution[:500], point_size=17)
 
 ## Surface Example
 
+See `examples/surface.ipynb`.
+
 In this section, we calculate eigenfunction of $\nabla^2$ on sphere. This problem is of great importance in quantum mechanics.
 
 Let $\Omega=${$(x, y, z)|x^2+y^2+z^2=1$}. Eigenfunctions on sphere can be very symmetric and beautiful. Turn to [Spherical harmonics - Wikipedia](https://en.wikipedia.org/wiki/Spherical_harmonics) for more introductions of these functions.
@@ -440,7 +451,7 @@ easypde.plot_points((points.T*np.abs(eig[1].T[np.lexsort([np.abs(eig[0])])[eigen
 
 We use absolute value of eigenfunction to morph the sphere to get better visualization.
 
-The result is not symmetric at all. This is because the eigenfunctions sharing eigenvalue mixed. To get a more symmetric result, you can make the operator behave a little different in the longitude and latitude direction. You only need to change the "Fill matrix A" part of the above code.
+The result is not symmetric at all. This is because the eigenfunctions sharing eigenvalue mixed. To get more symmetric results, you can make the operator behave a little different in the longitude and latitude direction. You only need to change the "Fill matrix A" part of the above code.
 
 ```python
 np.random.seed(0)
@@ -454,7 +465,9 @@ for i, point in enumerate(points):
 
 ![eigen_function](images/eigen_function.png)
 
-## ODE Example
+## Advection and Diffusion
+
+See `examples/advection_and_diffusion.ipynb`.
 
 Here we solve convection-diffusion equation $\frac {\partial u} {\partial t}=-v\cdot \nabla u+\mu \nabla^2 u$, where $v=(1, 1)$ and $\mu=0.03$.
 
@@ -524,6 +537,8 @@ The result is consistent with the previous one.
 
 ## Complex Functions Example
 
+See `examples/complex_functions.py`.
+
 You can also use EasyPDE solving PDEs of complex Functions.
 
 For a complex value function $f(x+i y)$, to require it as  a holomorphic function, we need Cauchy–Riemann equations: $\frac {\partial Re f}{\partial x} = \frac {\partial Im f}{\partial y}$ and $\frac {\partial Re f}{\partial y} = -\frac {\partial Im f}{\partial x}$, which equivalent to $\frac {\partial f}{\partial x} + i\frac {\partial f}{\partial y} = 0$. The differential operator $\frac {\partial}{\partial x} + i\frac {\partial}{\partial y}$ is wrote as `[0, 1, 1j, 0, 0, 0]` in EasyPDE. Let's solve a trivial problem, where we want to solve a holomorphic function $f(z)$ in a disk with $f\bigg|_{\partial \Omega}=z^2$.
@@ -559,14 +574,14 @@ Here we use a color function which maps $\text{Arg } f(z)$ to hue and $|f(z)|$ t
 The we can calculate the error:
 
 ```python
-np.sqrt(np.mean(np.square(np.abs(solution-(points[:, 0]+points[:, 1]*1j)**2))))
+np.sqrt(np.mean(np.square(np.abs(solution - (points[:, 0] + points[:, 1] * 1j) ** 2))))
 ```
 
 The error I got is $6.9\times 10^{-7}$. The numerical result is really satisfying.
 
-
-
 ## Vector Example
+
+See `examples/vector.py`.
 
 Consider a problem about static electric field: $\nabla\cdot \vec{E} = \rho(\vec{r}), \nabla\times \vec{E} = \vec{0}$, where $\vec{E}$ is the electric field and $\rho(\vec{r})$ is the source, namely the electric charge density, of the electric field. This can be solved by solving $\nabla^2 \phi = \rho(\vec{r})$ firstly and then calculate $\vec{E}$ by $\nabla \rho$. But here, we try to directly solve the PDE of vector field $\vec{E}$.
 
@@ -616,12 +631,12 @@ We compare the result with ground truth.
 r = np.sqrt(np.sum(np.square(points), axis=-1))
 ground_truth =  np.array(points)
 ground_truth = ground_truth.T
-ground_truth[:, r>=source_r] *= r[r>=source_r]**-2*(np.pi*source_r**2/2/np.pi)*1
-ground_truth[:, r<source_r] *= (np.pi*source_r**2/2/np.pi)/source_r/source_r
+ground_truth[:, r >= source_r] *= r[r >= source_r] ** -2 * (np.pi * source_r ** 2 / 2 / np.pi)
+ground_truth[:, r < source_r] *= (np.pi * source_r ** 2 / 2 / np.pi) / source_r / source_r
 ground_truth = ground_truth.T
 ground_truth = ground_truth.T.flatten()
 
-print('error =', np.sqrt(np.mean(np.square(solution-ground_truth))))
+print(f'mse = {np.sqrt(np.mean(np.square(solution - ground_truth)))}')
 # Result on my machine: error = 0.006351124477499586.
 ```
 
@@ -638,12 +653,18 @@ easypde.edit_A_and_b(i, A, b, points, point, None, 'curl', neighbors=neighbors, 
 
 ## TODO
 
-加入在黎曼曲面上解PDE的样例
+- 控制点和采样点使用不同的点集
 
-加入广义相对论样例
+- 加入在黎曼曲面上解PDE的样例
 
-直接生成微分矩阵的函数
+- 加入广义相对论样例
 
-CPU多核求微分矩阵
+- 加入流体力学样例
 
-稀疏矩阵
+- 直接生成微分矩阵的函数
+
+- CPU多核求微分矩阵
+
+- 稀疏矩阵
+
+- GPU加速
