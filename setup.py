@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="easypde",
-    version="1.1",
+    version="1.1.1",
     author="Shengzhi Wu",
     author_email="e1124755@u.nus.edu",
     description="A powerful and easy-to-use python package for solving PDEs.",
