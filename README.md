@@ -345,6 +345,10 @@ You can set point size in `easypde.plot_points` by thing like `point_size=10`.
 
 You can option `adaptive_point_size=True` to make point size adapt to the density of points cloud where each point locate. This feature induce additional computing cost. This feature on support 2D visualization.
 
+## Fix Checkerboard Pattern
+
+For some differential equations, issues similar to those of a checkerboard pattern often occur in the numerical results. The solution method can be found in the section Conformal Mapping Example.
+
 ## 3D Example
 
 See `examples/3d.py`.
@@ -541,7 +545,21 @@ See `examples/complex_functions.py`.
 
 You can also use EasyPDE solving PDEs of complex Functions.
 
-For a complex value function $f(x+i y)$, to require it as  a holomorphic function, we need Cauchy–Riemann equations: $\frac {\partial Re f}{\partial x} = \frac {\partial Im f}{\partial y}$ and $\frac {\partial Re f}{\partial y} = -\frac {\partial Im f}{\partial x}$, which equivalent to $\frac {\partial f}{\partial x} + i\frac {\partial f}{\partial y} = 0$. The differential operator $\frac {\partial}{\partial x} + i\frac {\partial}{\partial y}$ is wrote as `[0, 1, 1j, 0, 0, 0]` in EasyPDE. Let's solve a trivial problem, where we want to solve a holomorphic function $f(z)$ in a disk with $f\bigg|_{\partial \Omega}=z^2$.
+For a complex value function $f(x+i y)$, to require it as  a holomorphic function, we need Cauchy–Riemann equations:
+$$
+\frac {\partial Re f}{\partial x} = \frac {\partial Im f}{\partial y}
+$$
+and
+$$
+\frac {\partial Re f}{\partial y} = -\frac {\partial Im f}{\partial x},
+$$
+which equivalent to
+$$
+\frac {\partial f}{\partial x} + i\frac {\partial f}{\partial y} = 0.
+$$
+The differential operator $\frac {\partial}{\partial x} + i\frac {\partial}{\partial y}$ is wrote as `[0, 1, 1j, 0, 0, 0]` in EasyPDE.
+
+Let's solve a trivial problem, where we want to solve a holomorphic function $f(z)$ in a disk with $f\bigg|_{\partial \Omega}=z^2$.
 
 ```python
 points = easypde.pointcloud.scatter_points_on_disk(400)
@@ -552,9 +570,9 @@ weight_distribution_radius = easypde.pointcloud.get_typical_distance(points)*0.1
 for i, point in enumerate(points):
     x = point[0]
     y = point[1]
-    if x**2+y**2>0.999:  # On boundary
+    if x ** 2 + y ** 2 > 0.999:  # On boundary
         easypde.edit_A_and_b(i, A, b, points, point, 5, [1, 0, 0, 0, 0, 0],
-                             value=(x+y*1j)**2,
+                             value=(x + y * 1j) ** 2,
                              weight_distribution_radius=weight_distribution_radius,
                              dtype=np.complex64)
     else:  # Internal
@@ -578,6 +596,139 @@ np.sqrt(np.mean(np.square(np.abs(solution - (points[:, 0] + points[:, 1] * 1j) *
 ```
 
 The error I got is $6.9\times 10^{-7}$. The numerical result is really satisfying.
+
+## Conformal Mapping Example
+
+Let's solve a slightly more complex problem in the field of complex analysis. Let's find the conformal mapping from a square $[-0.5, 0.5] \times [-0.5, 0.5]$ to the unit disk on the complex plane. A conformal mapping is a differentiable bijection and we requires the derivative to be a complex number (satisfying Cauchy–Riemann equations (see the last section)). According to the Riemann mapping theorem, such a mapping does exist.
+
+We need to define the mapping from the square boundary to the unit circle. We initially hypothesize that this mapping is $z \mapsto z / |z|$ (which is actually not correct). See the figure.
+
+![conformal_mapping_boundary_mapping_0](images/conformal_mapping_boundary_mapping_0.png)
+
+Using a method very similar to that in the previous section, we wrote the code as follows.
+
+```python
+np.random.seed(0)
+points = easypde.pointcloud.scatter_points_on_square(800) - 0.5
+
+A = np.zeros((len(points), len(points)), dtype=np.complex64)
+b = np.zeros(len(points), dtype=np.complex64)
+weight_distribution_radius = easypde.pointcloud.get_typical_distance(points)*0.1
+for i, point in enumerate(points):
+    x = point[0]
+    y = point[1]
+    if abs(x) == 0.5 or abs(y) == 0.5:  # On boundary
+        z = x + 1j * y
+        z /= np.abs(z)
+        easypde.edit_A_and_b(i, A, b, points, point, 5, [1, 0, 0, 0, 0, 0],
+                             value=z,
+                             weight_distribution_radius=weight_distribution_radius,
+                             dtype=np.complex64)
+    else:  # Internal
+        easypde.edit_A_and_b(i, A, b, points, point, 16, [0, 1, 1j, 0, 0, 0],
+                             weight_distribution_radius=weight_distribution_radius,
+                             dtype=np.complex64)
+
+solution = np.linalg.solve(A, b)
+
+easypde.plot_points(points, field=solution, color_map='complex_hsv', point_size=10)
+```
+
+We obtains a result that is completely unacceptable:
+
+![conformal_mapping_result_0](images/conformal_mapping_result_0.png)
+
+We observed severe oscillations in the numerical results, which is similar to the checkerboard pattern often encountered when solving PDEs numerically. This is usually a difficult problem, meaning that this numerical method is not feasible for this problem. However, in EasyPDE, we have an elegant solution.
+
+Previously, we set the value at each point as an unknown, and then discretize differential equations around each point. The number of variables and constraints are almost (or exactly) the same, which leads to the solver in some cases finding a non-physical numerical solution that satisfies all the constraints well, but is very jagged and far from the real solution.
+
+The way to make the computer realize that such a solution is not correct is to discretize the PDE at more positions than the control points. In the non-grid method, we have a lot of freedom to do this. We construct two types of points:
+
+1. The control points, where we set the function values there as unknowns;
+
+2. The probe points, where we discretize the PDE.
+
+We construct these two types of points using the following code.
+
+```python
+np.random.seed(0)
+control_points = easypde.pointcloud.scatter_points_on_square(800) - 0.5
+probe_points = easypde.pointcloud.scatter_points_on_square(1600) - 0.5
+
+easypde.plot_points(control_points, plt_show=False, label="Control Points")
+easypde.plot_points(probe_points, point_size=2, plt_show=False, label="Probe Points")
+plt.legend()
+plt.show()
+```
+
+![conformal_mapping_control_points_and_probe_points](images/conformal_mapping_control_points_and_probe_points.png)
+
+Our algorithm is very flexible and these two types of points do not need to be aligned.
+
+We solve the problem and do visualization:
+
+```python
+A = np.zeros((len(probe_points), len(control_points)), dtype=np.complex64)
+b = np.zeros(len(probe_points), dtype=np.complex64)
+weight_distribution_radius = easypde.pointcloud.get_typical_distance(control_points) * 0.1
+for i, point in enumerate(probe_points):
+    x = point[0]
+    y = point[1]
+    if abs(x) == 0.5 or abs(y) == 0.5:  # On boundary
+        z = x + 1j * y
+        z /= np.abs(z)
+        easypde.edit_A_and_b(i, A, b, control_points, point, 5, [1, 0, 0, 0, 0, 0],
+                             value=z,
+                             weight_distribution_radius=weight_distribution_radius,
+                             dtype=np.complex64)
+    else:  # Internal
+        easypde.edit_A_and_b(i, A, b, control_points, point, 16, [0, 1, 1j, 0, 0, 0],
+                             weight_distribution_radius=weight_distribution_radius,
+                             dtype=np.complex64)
+
+solution = np.linalg.lstsq(A, b, rcond=None)[0]  # Here we replace np.linalg.solve with np.linalg.lstsq because the matrix is not square
+
+easypde.plot_points(control_points, field=solution, color_map='complex_hsv', point_size=10)
+```
+
+![conformal_mapping_solution_0](images/conformal_mapping_solution_0.png)
+
+We visualize the error:
+
+```python
+error = np.abs(A @ solution - b)
+easypde.plot_points(probe_points, field=error, plt_show=False)
+plt.title('Error')
+plt.plot()
+print(f'error = {np.max(error)}')
+```
+
+![conformal_mapping_error_0](images/conformal_mapping_error_0.png)
+
+The error is approximately 0.07 and is concentrated at the boundaries. We can improve this. We previously simply assumed the mapping at the boundary. However, the degree of freedom for the conformal mapping between any two simply connected regions on the complex plane is actually only 3, which means that the edge mapping is strongly constrained. According to symmetry, we set
+$$
+z \mapsto \tilde{z} / |\tilde{z}|
+$$
+where
+$$
+\tilde{z} := z \left( 1 + \sum_{i = 1}^\infty a_{4i} z ^ {4i} \right) .
+$$
+We can use search algorithms, genetic algorithms or gradient descent methods to determine the coefficients. However, the specific implementation deviates from the main point of this article, so we will provide an approximate configuration instead. Let $a_4 = 0.117, a_8 = 0.011, a_{12} = 0.003$ and $a_i = 0$ for all $i > 12$.
+
+![conformal_mapping_boundary_mapping_1](images/conformal_mapping_boundary_mapping_1.png)
+
+We add two lines after the line `z /= np.abs(z)` in the above code:
+
+```python
+z *= 1 + z ** 4 * 0.117 - z ** 8 * 0.011 + z ** 12 * 0.003  # By adjusting these parameters, we minimize the error
+z /= np.abs(z)
+```
+
+![conformal_mapping_solution_1](images/conformal_mapping_solution_1.png)
+
+![conformal_mapping_error_1](images/conformal_mapping_error_1.png)
+
+Now the error is much smaller.
 
 ## Vector Example
 
