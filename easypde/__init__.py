@@ -1,6 +1,6 @@
 import numpy as np
 
-__version__ = "1.1.1"
+__version__ = "1.2.0"
 
 class math:
     @classmethod
@@ -344,8 +344,8 @@ def hsv_to_rgb(hsv):
     rgb += m.reshape([-1, 1])
     return rgb
 
-def plot_points(points, field=None, point_size=None, adaptive_point_size=False, color_map=None):
-    if points.shape[-1]==2:
+def plot_points(points, field=None, point_size=None, adaptive_point_size=False, color_map=None, plt_show=True, label=None):
+    if points.shape[-1] == 2:
         import matplotlib.pyplot as plt
 
         if adaptive_point_size:
@@ -354,23 +354,36 @@ def plot_points(points, field=None, point_size=None, adaptive_point_size=False, 
                 closest_points = points[pointcloud.find_closest_points(points, point, 2)[1]]
                 distance_to_neighbor.append(np.sqrt(np.sum(np.square(closest_points-point))))
             distance_to_neighbor = np.array(distance_to_neighbor)
-            point_size_factor = distance_to_neighbor ** 2
+            point_size_factor = distance_to_neighbor**2
             point_size_factor /= np.mean(point_size_factor)
         
         if point_size is None:
             point_size = 6
 
         if color_map == "complex_hsv":
-            plt.scatter(points[:, 0], points[:, 1], s=point_size ** 2 if not adaptive_point_size else point_size ** 2 * point_size_factor, c=hsv_to_rgb(np.array([np.arctan2(np.imag(field), np.real(field))/(2*np.pi),
-                                                                                         np.ones(len(field)),
-                                                                                         np.abs(field)/np.max(np.abs(field))]).T))
+            plt.scatter(
+                points[:, 0], points[:, 1],
+                s=point_size ** 2 if not adaptive_point_size else point_size ** 2 * point_size_factor,
+                c=hsv_to_rgb(np.array([
+                    np.arctan2(np.imag(field), np.real(field)) / (2 * np.pi),
+                    np.ones(len(field)),
+                    np.abs(field)/np.max(np.abs(field))
+                ]).T),
+                label=label
+            )
         else:
-            plt.scatter(points[:, 0], points[:, 1], s=point_size ** 2 if not adaptive_point_size else point_size ** 2 * point_size_factor, c=field, cmap=color_map)
+            plt.scatter(
+                points[:, 0], points[:, 1],
+                s=point_size ** 2 if not adaptive_point_size else point_size ** 2 * point_size_factor,
+                c=field, cmap=color_map,
+                label=label
+            )
         plt.axis('equal')
         if not (field is None or color_map == "complex_hsv" or len(field.shape)!=1):
             plt.colorbar()
-        plt.show()
-    elif points.shape[-1]==3:
+        if plt_show:
+            plt.show()
+    elif points.shape[-1] == 3:
         import pyvista
 
         if point_size is None:
